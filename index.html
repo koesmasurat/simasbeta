@@ -197,44 +197,8 @@
 
                 <div class="tab-content">
                     
-                    <!-- INPUT MASUK (UPDATED WITH OCR) -->
-                    <div class="tab-pane active show" id="input-masuk-content">
-                        <div class="form-container-limit">
-                            <h2 class="mb-4 fw-light text-white">Catat <b class="text-info">Surat Masuk</b></h2>
-                            <div class="card">
-                                <div class="card-body p-4">
-                                    <form id="formSuratMasuk">
-                                        <div class="row">
-                                            <div class="col-md-4 mb-3"><label class="small text-white-50">No. Agenda (Auto)</label><input type="text" class="form-control" name="noAgenda" required></div>
-                                            <div class="col-md-4 mb-3"><label class="small text-white-50">Tanggal Surat</label><input type="date" class="form-control" name="tglSurat" required></div>
-                                            <div class="col-md-4 mb-3"><label class="small text-white-50">Tanggal Terima</label><input type="date" class="form-control" name="tglTerima" required></div>
-                                        </div>
-                                        
-                                        <!-- OCR INPUT GROUP -->
-                                        <div class="mb-4">
-                                            <label class="small text-white-50">File (PDF/Img)</label>
-                                            <div class="input-group">
-                                                <input type="file" class="form-control" id="fileSuratMasuk">
-                                                <button class="btn btn-warning fw-bold" type="button" onclick="scanSuratMasuk()">
-                                                    <i class="fas fa-magic me-1"></i> Scan AI
-                                                </button>
-                                            </div>
-                                            <small class="text-white-50 fst-italic" style="font-size:0.75rem">*Pilih file gambar surat, lalu klik Scan AI untuk isi data otomatis.</small>
-                                        </div>
-                                        <!-- END OCR GROUP -->
-
-                                        <div class="mb-3"><label class="small text-white-50">No. Surat</label><input type="text" class="form-control" name="noSurat" required></div>
-                                        <div class="mb-3"><label class="small text-white-50">Pengirim</label><input type="text" class="form-control" name="pengirim" required></div>
-                                        <div class="mb-3"><label class="small text-white-50">Kode Klarifikasi</label><input class="form-control" list="listKodeKlarifikasi" name="kodeKlarifikasi" placeholder="Ketik kode atau keterangan..."><datalist id="listKodeKlarifikasi"></datalist></div>
-                                        <div class="mb-3"><label class="small text-white-50">Perihal</label><textarea class="form-control" name="perihal" rows="3" required></textarea></div>
-                                        
-                                        <div class="d-grid"><button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Simpan</button></div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                    <!-- INPUTS (Same) -->
+                    <div class="tab-pane active show" id="input-masuk-content"><div class="form-container-limit"><h2 class="mb-4 fw-light text-white">Catat <b class="text-info">Surat Masuk</b></h2><div class="card"><div class="card-body p-4"><form id="formSuratMasuk"><div class="row"><div class="col-md-4 mb-3"><label class="small text-white-50">No. Agenda (Auto)</label><input type="text" class="form-control" name="noAgenda" required></div><div class="col-md-4 mb-3"><label class="small text-white-50">Tanggal Surat</label><input type="date" class="form-control" name="tglSurat" required></div><div class="col-md-4 mb-3"><label class="small text-white-50">Tanggal Terima</label><input type="date" class="form-control" name="tglTerima" required></div></div><div class="mb-3"><label class="small text-white-50">No. Surat</label><input type="text" class="form-control" name="noSurat" required></div><div class="mb-3"><label class="small text-white-50">Pengirim</label><input type="text" class="form-control" name="pengirim" required></div><div class="mb-3"><label class="small text-white-50">Kode Klarifikasi</label><input class="form-control" list="listKodeKlarifikasi" name="kodeKlarifikasi" placeholder="Ketik kode atau keterangan..."><datalist id="listKodeKlarifikasi"></datalist></div><div class="mb-3"><label class="small text-white-50">Perihal</label><textarea class="form-control" name="perihal" rows="3" required></textarea></div><div class="mb-4"><label class="small text-white-50">File (PDF/Img)</label><input type="file" class="form-control" id="fileSuratMasuk"></div><div class="d-grid"><button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Simpan</button></div></form></div></div></div></div>
                     <div class="tab-pane" id="input-keluar-content"><div class="form-container-limit"><h2 class="mb-4 fw-light text-white">Catat <b class="text-success">Surat Keluar</b></h2><div class="card"><div class="card-body p-4"><form id="formSuratKeluar"><div class="row"><div class="col-md-6 mb-3"><label class="small text-white-50">No. Agenda (Auto)</label><div class="input-group"><input type="text" class="form-control" name="noAgenda" id="outNoAgenda" required><button class="btn btn-warning" type="button" onclick="openBookingModal()">Booking No.</button></div></div><div class="col-md-6 mb-3"><label class="small text-white-50">Tanggal Surat Diterima</label><input type="date" class="form-control" name="tglSurat" required></div></div><div class="mb-3"><label class="small text-white-50">No. Surat (Format Dinas)</label><input type="text" class="form-control" name="noSurat" required placeholder="Contoh: 445/001/405.08/2024"></div><div class="mb-3"><label class="small text-white-50">Tujuan</label><input type="text" class="form-control" name="tujuan" required></div><div class="mb-3"><label class="small text-white-50">Perihal</label><textarea class="form-control" name="perihal" rows="3" required></textarea></div><div class="mb-3"><label class="small text-white-50">Pembuat</label><input type="text" class="form-control" name="pembuat"></div><div class="mb-4"><label class="small text-white-50">File</label><input type="file" class="form-control" id="fileSuratKeluar"></div><div class="d-grid"><button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Simpan</button></div></form></div></div></div></div>
 
                     <!-- DISPOSISI -->
@@ -408,73 +372,6 @@
             
             $('button[onclick^="activateTab"]').on('click', function (e) { $('.submenu .nav-link').removeClass('active'); });
         });
-
-        // --- NEW: OCR FUNCTION ---
-        async function scanSuratMasuk() {
-            const fileInput = document.getElementById('fileSuratMasuk');
-            if (fileInput.files.length === 0) {
-                return Swal.fire('Info', 'Pilih file surat terlebih dahulu.', 'info');
-            }
-
-            showLoading(true);
-            try {
-                // 1. Convert to Base64
-                const fileData = await readFileToBase64(fileInput.files[0]);
-                
-                // 2. Send to Backend
-                fetch(GAS_URL, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        type: 'ocr_scan',
-                        fileData: fileData
-                    })
-                })
-                .then(r => r.json())
-                .then(r => {
-                    showLoading(false);
-                    if (r.status === 'success' && r.data) {
-                        const d = r.data;
-                        
-                        // 3. Populate Fields
-                        // No Surat
-                        if(d.no_surat) $('input[name="noSurat"]').val(d.no_surat);
-                        
-                        // Tgl Surat (Expect YYYY-MM-DD from Backend)
-                        if(d.tgl_surat) {
-                            try { document.getElementsByName('tglSurat')[0].value = d.tgl_surat; } catch(e){}
-                        }
-
-                        // Pengirim
-                        if(d.pengirim) $('input[name="pengirim"]').val(d.pengirim);
-                        
-                        // Perihal
-                        if(d.perihal) $('textarea[name="perihal"]').val(d.perihal);
-
-                        // 4. Success Message
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Scan Berhasil!',
-                            html: `<div class="text-start small">
-                                   <b>No:</b> ${d.no_surat || '-'}<br>
-                                   <b>Tgl:</b> ${d.tgl_surat || '-'}<br>
-                                   <b>Pengirim:</b> ${d.pengirim || '-'}<br>
-                                   <b>Perihal:</b> ${d.perihal || '-'}
-                                   </div><br><i>Silakan koreksi jika ada kesalahan.</i>`
-                        });
-                    } else {
-                        Swal.fire('Gagal', r.message || 'Gagal membaca gambar.', 'error');
-                    }
-                })
-                .catch(e => {
-                    showLoading(false);
-                    Swal.fire('Error', 'Gagal menghubungi server AI.', 'error');
-                });
-
-            } catch (e) {
-                showLoading(false);
-                Swal.fire('Error', 'Gagal memproses file.', 'error');
-            }
-        }
 
         // --- NEW: Load Ref Codes ---
         function loadRefCodes() {
