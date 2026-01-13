@@ -707,9 +707,11 @@
 
         function updateProgressBar(id, nodeData) {
             const usedGB = (nodeData.used / (1024*1024*1024)).toFixed(2);
+            const limitGB = (nodeData.limit / (1024*1024*1024)).toFixed(0); // Hitung limit dalam GB
             const percentage = nodeData.percentage || 0;
             
-            $(`#disp-quota-${id}`).text(`${usedGB} GB`);
+            // PERBAIKAN: Format tampilan "0.29 GB dari 15 GB"
+            $(`#disp-quota-${id}`).text(`${usedGB} GB dari ${limitGB} GB`);
             $(`#prog-${id}`).css('width', `${percentage}%`);
             $(`#text-quota-${id}`).text(`${percentage}% Terpakai`);
             
@@ -957,7 +959,51 @@
         function loadRefCodes() { fetch(`${GAS_URL}?action=get_ref_codes`).then(r => r.json()).then(r => { if (r.status === 'success' && r.data) { const list = $('#listKodeKlarifikasi'); const listEdit = $('#listKodeKlarifikasiEdit'); list.empty(); listEdit.empty(); r.data.forEach(item => { const option = `<option value="${item.code}">${item.desc}</option>`; list.append(option); listEdit.append(option); }); } }); }
         function handleCredentialResponse(response) { showLoading(true); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ type: 'google_login', credential: response.credential }) }).then(r => r.json()).then(r => { showLoading(false); if (r.status === 'success') { sessionStorage.setItem('isLoggedIn', 'true'); sessionStorage.setItem('userEmail', r.data.email); sessionStorage.setItem('userRole', r.data.role); sessionStorage.setItem('userPermissions', JSON.stringify(r.data.permissions)); sessionStorage.setItem('userSubordinates', JSON.stringify(r.data.subordinates)); sessionStorage.setItem('userName', r.data.name); currentUserEmail = r.data.email; showApp(); loadCounters(); loadRefCodes(); renderSidebarPermissions(); } else { Swal.fire({ icon: 'error', title: 'Login Gagal', text: r.message }); } }).catch(e => { showLoading(false); Swal.fire('Error', 'Koneksi Gagal', 'error'); }); }
         function renderSidebarPermissions() { const role = sessionStorage.getItem('userRole'); const perms = JSON.parse(sessionStorage.getItem('userPermissions') || "[]"); const name = sessionStorage.getItem('userName'); $('#userDisplayName').text(name); $('#userRoleBadge').text(role); $('.restricted-feature').addClass('restricted-feature'); if (role === 'Super Admin') { $('.restricted-feature').removeClass('restricted-feature'); return; } if (perms && Array.isArray(perms)) { perms.forEach(p => { $(`[data-perm="${p}"]`).removeClass('restricted-feature'); }); } }
-        function loadUsers() { showLoading(true); fetch(`${GAS_URL}?type=get_users_list`, { method: 'POST', body: JSON.stringify({ type: 'get_users_list', requestor: currentUserEmail }) }).then(r => r.json()).then(r => { showLoading(false); const dt = $('#tableUsers').DataTable(); if ($.fn.DataTable.isDataTable('#tableUsers')) { dt.clear().destroy(); } const table = $('#tableUsers').DataTable({ language: { url: "//cdn.datatables.net/plug-ins/1.13.4/i18n/id.json" } }); allUsersCache = r.data; if (r.data) { r.data.forEach(u => { let btnEdit = `<button class="btn btn-sm btn-info text-white me-1" onclick='openEditUser(${JSON.stringify(u)})' title="Edit Akses"><i class="fas fa-edit"></i></button>`; let btnTeam = `<button class="btn btn-sm btn-warning text-dark" onclick='openManageSubordinates(${JSON.stringify(u)})' title="Atur Bawahan"><i class="fas fa-users"></i></button>`; table.row.add([ u.email, u.name, u.role, u.status, btnEdit + btnTeam ]); }); table.draw(); } }); }
+        
+        // --- UPDATED LOADUSERS FUNCTION ---
+        function loadUsers() { 
+            showLoading(true); 
+            fetch(`${GAS_URL}?type=get_users_list`, { 
+                method: 'POST', 
+                body: JSON.stringify({ type: 'get_users_list', requestor: currentUserEmail }) 
+            })
+            .then(r => r.json())
+            .then(r => { 
+                showLoading(false); 
+                
+                // Re-initialize DataTable safely
+                if ($.fn.DataTable.isDataTable('#tableUsers')) { 
+                    $('#tableUsers').DataTable().clear().destroy(); 
+                } 
+                
+                const table = $('#tableUsers').DataTable({ 
+                    language: { url: "//cdn.datatables.net/plug-ins/1.13.4/i18n/id.json" },
+                    autoWidth: false
+                }); 
+                
+                if (r.status === 'success' && r.data) { 
+                    allUsersCache = r.data; 
+                    r.data.forEach(u => { 
+                        // PERBAIKAN: Escape single quotes untuk mencegah error rendering tombol
+                        const safeUser = JSON.stringify(u).replace(/'/g, "&apos;");
+                        
+                        let btnEdit = `<button class="btn btn-sm btn-info text-white me-1" onclick='openEditUser(${safeUser})' title="Edit Akses"><i class="fas fa-edit"></i></button>`; 
+                        let btnTeam = `<button class="btn btn-sm btn-warning text-dark" onclick='openManageSubordinates(${safeUser})' title="Atur Bawahan"><i class="fas fa-users"></i></button>`; 
+                        
+                        table.row.add([ u.email, u.name, u.role, u.status, btnEdit + btnTeam ]); 
+                    }); 
+                    table.draw(); 
+                } else {
+                    // Handle case where data is missing or error
+                    console.error("Gagal memuat user:", r.message);
+                }
+            })
+            .catch(e => {
+                showLoading(false);
+                console.error("Network error loadUsers:", e);
+            });
+        }
+
         function openEditUser(user) { $('#editUserEmail').val(user.email); $('#editUserName').val(user.name); $('#editUserRole').val(user.role); $('#editUserStatus').val(user.status); $('.perm-check').prop('checked', false); try { const perms = JSON.parse(user.permissions); perms.forEach(p => { $(`.perm-check[value="${p}"]`).prop('checked', true); }); } catch(e){} new bootstrap.Modal(document.getElementById('modalEditUser')).show(); }
         function saveUserPermissions() { const perms = []; $('.perm-check:checked').each(function() { perms.push($(this).val()); }); const payload = { type: 'update_user_permissions', requestor: currentUserEmail, targetEmail: $('#editUserEmail').val(), name: $('#editUserName').val(), role: $('#editUserRole').val(), status: $('#editUserStatus').val(), permissions: JSON.stringify(perms) }; bootstrap.Modal.getInstance(document.getElementById('modalEditUser')).hide(); showLoading(true); fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) }).then(r => r.json()).then(r => { showLoading(false); if(r.status==='success') { Swal.fire('Sukses', 'Data user diupdate', 'success'); loadUsers(); } else Swal.fire('Gagal', r.message, 'error'); }); }
         function openManageSubordinates(user) { $('#subordTargetName').text(user.name); $('#subordTargetEmail').val(user.email); const container = $('#subordinatesList'); container.empty(); let currentSubs = []; try { currentSubs = JSON.parse(user.subordinates) || []; } catch(e){} allUsersCache.forEach(u => { if(u.email !== user.email) { const isChecked = currentSubs.includes(u.name) ? 'checked' : ''; const html = `<div class="col-md-6 sub-item"><div class="form-check bg-dark bg-opacity-25 rounded p-2"><input class="form-check-input subord-check ms-1" type="checkbox" value="${u.name}" id="sub_${u.email}" ${isChecked}><label class="form-check-label ms-2 text-white" for="sub_${u.email}">${u.name} <small class="text-info d-block" style="font-size:0.7em">${u.role}</small></label></div></div>`; container.append(html); } }); new bootstrap.Modal(document.getElementById('modalManageSubordinates')).show(); }
