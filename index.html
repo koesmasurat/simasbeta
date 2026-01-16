@@ -315,7 +315,7 @@
                                         </button>
                                     </div>
                                     <div class="card-footer bg-light small text-muted">
-                                        <i class="fas fa-info-circle me-1"></i> Sistem v21.6
+                                        <i class="fas fa-info-circle me-1"></i> Sistem v21.4
                                     </div>
                                 </div>
                             </div>
@@ -710,38 +710,41 @@
             saveAppState('disposisi-container', l, currentInboxContextEmail, overrideName);
         }
 
-        // --- UPDATED REFRESH DISPOSISI (BULLETPROOF FIX) ---
         function refreshCurrentDisposisi(){
             showLoading(true);
             fetch(`${GAS_URL}?action=read_inbox&level=${currentInboxLevel}&email=${currentInboxContextEmail}`)
             .then(r=>r.json())
             .then(r=>{
                 showLoading(false);
-                const dt=$('#tableDisposisi').DataTable({destroy:true,language:{url:"//cdn.datatables.net/plug-ins/1.13.4/i18n/id.json"}, order: [[ 1, 'desc' ]] });
+                const dt=$('#tableDisposisi').DataTable({
+                    destroy:true,
+                    language:{url:"//cdn.datatables.net/plug-ins/1.13.4/i18n/id.json"}, 
+                    order: [[ 1, 'desc' ]] 
+                });
                 dt.clear();
                 if(r.data) r.data.forEach(d=>{
                     
-                    // SOLUSI ANTI-ERROR:
-                    // 1. Pastikan perihal dianggap sebagai String (jika angka/kosong tidak error)
-                    // 2. Gunakan encodeURIComponent untuk mengubah SEMUA karakter aneh menjadi kode % (misal spasi jadi %20, kutip jadi %27)
-                    // 3. Ganti manual kutip satu (') menjadi %27 agar tidak memutus string JavaScript
-                    const rawPerihal = String(d.perihal || ""); 
-                    const safePerihal = encodeURIComponent(rawPerihal).replace(/'/g, "%27");
+                    // 1. Bersihkan Perihal untuk parameter fungsi (menghindari error kutip/enter)
+                    const cleanPerihal = String(d.perihal || "")
+                        .replace(/'/g, "\\'")       // Escape kutip satu
+                        .replace(/"/g, "&quot;")    // Escape kutip dua
+                        .replace(/(\r\n|\n|\r)/gm, " "); // Hapus enter
 
                     let btnAction = '';
                     
-                    // Perhatikan penggunaan decodeURIComponent(...) di dalam onclick
+                    // 2. Logika Tombol
                     if(currentInboxLevel === 'staf') {
                         btnAction = `
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-warning" title="Disposisi Lanjut" onclick="openDisposisiModal('${d.id}', decodeURIComponent('${safePerihal}'))"><i class="fas fa-share"></i></button>
+                            <button class="btn btn-sm btn-warning" title="Disposisi Lanjut" onclick="openDisposisiModal('${d.id}','${cleanPerihal}')"><i class="fas fa-share"></i></button>
                             <button class="btn btn-sm btn-success ms-1" title="Selesaikan Tugas" onclick="openFinishModal('${d.agenda}')"><i class="fas fa-check"></i></button>
                         </div>`;
                     } else {
-                        // Tombol Proses Direktur/Pejabat
-                        btnAction = `<button class="btn btn-sm btn-warning" onclick="openDisposisiModal('${d.id}', decodeURIComponent('${safePerihal}'))">Proses</button>`;
+                        // Tombol Proses
+                        btnAction = `<button class="btn btn-sm btn-warning" onclick="openDisposisiModal('${d.id}','${cleanPerihal}')">Proses</button>`;
                     }
                     
+                    // 3. Kolom Perihal sebagai Link
                     let perihalHtml = d.file 
                         ? `<a href="${d.file}" target="_blank" class="fw-bold text-decoration-none text-primary" title="Klik untuk lihat file">${d.perihal} <i class="fas fa-paperclip text-muted small ms-1"></i></a>` 
                         : `<span class="text-dark">${d.perihal}</span>`;
@@ -890,6 +893,21 @@
         function applyBooking() { const val = $('#bookingValue').val(); const cat = $('#bookingCategory').val(); if(val) { if(cat === 'keluar') $('#outNoAgenda').val(val); else $('#inNoAgenda').val(val); bootstrap.Modal.getInstance(document.getElementById('modalBooking')).hide(); } }
         function saveBooking() { const val = $('#bookingValue').val(); const cat = $('#bookingCategory').val(); const note = $('#bookingNote').val(); if(!val) return Swal.fire('Warning', 'Isi Nomor Agenda', 'warning'); bootstrap.Modal.getInstance(document.getElementById('modalBooking')).hide(); showLoading(true); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ type: 'booking_agenda', category: cat, targetAgenda: val, email: currentUserEmail, note: note }) }).then(r => r.json()).then(r => { showLoading(false); if(r.status === 'success') { Swal.fire('Sukses', r.data.message, 'success'); if(cat === 'keluar') autoFillAgendaKeluar(); else autoFillAgendaMasuk(); } else { Swal.fire('Gagal', r.message, 'error'); } }); }
         function setDefaultDatesMasuk() { const today = new Date().toISOString().split('T')[0]; if(!$('input[name="tglSurat"]').val()) $('input[name="tglSurat"]').val(today); if(!$('input[name="tglTerima"]').val()) $('input[name="tglTerima"]').val(today); }
+        
+        function loadRefCodes() {
+            fetch(`${GAS_URL}?action=get_ref_codes`)
+            .then(r => r.json())
+            .then(r => {
+                if (r.status === 'success' && r.data) {
+                    const list = $('#listKodeKlarifikasi');
+                    list.empty();
+                    r.data.forEach(item => {
+                        list.append(`<option value="${item.code} - ${item.desc}"></option>`);
+                    });
+                }
+            });
+        }
+        window.handleCredentialResponse = handleCredentialResponse;
     </script>
 </body>
 </html>
