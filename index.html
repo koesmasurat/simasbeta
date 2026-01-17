@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIMAS KOESMA - Enterprise</title>
+    <title>SIMAS KOESMA</title>
     <link rel="icon" href="https://github.com/koesmasurat/simas/blob/main/logo%20rsud%202%20png.png?raw=true" type="image/png">
     
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -673,12 +673,7 @@
             let sidebarTimer;
 
             // 1. Initial State for Mobile - Hide sidebar by default
-            // We use 'toggled' class which shifts sidebar left (-width)
-            // On mobile, if we want to hide it initially, we add 'toggled'
-            // BUT wait, if we reload page on mobile, it should start hidden.
             if (isMobile) {
-                // Only add if not already explicitly managed by user session in a real app, 
-                // but here we just reset on load/resize to safe state
                 if (!sidebar.hasClass('toggled')) {
                     sidebar.addClass('toggled');
                     content.addClass('toggled');
@@ -687,14 +682,11 @@
 
             // 2. Auto-hide Logic
             function resetSidebarTimer() {
-                // Only run on mobile and if sidebar is OPEN (i.e. does NOT have .toggled class)
                 if ($(window).width() <= 768 && !sidebar.hasClass('toggled')) {
                     clearTimeout(sidebarTimer);
                     sidebarTimer = setTimeout(() => {
-                        // Double check if still mobile and still open
                         if ($(window).width() <= 768 && !sidebar.hasClass('toggled')) {
                             sidebar.addClass('toggled');
-                            // On mobile content margin is always 0 via CSS !important, but we toggle class for consistency
                             content.addClass('toggled'); 
                         }
                     }, 3000); // 3 Seconds
@@ -702,15 +694,28 @@
             }
 
             // Detect activity on sidebar to reset timer
-            // We listen to common interaction events
             sidebar.off('mousemove touchstart click scroll').on('mousemove touchstart click scroll', function() {
                 resetSidebarTimer();
             });
 
             // Trigger timer start when sidebar is manually opened
             $('#sidebarCollapse').off('click.mobileTimer').on('click.mobileTimer', function() {
-                // Wait slightly for the toggle animation/state change to finish then start timer
                 setTimeout(resetSidebarTimer, 300);
+            });
+
+            // 3. Click Outside to Close (NEW FEATURE: Close sidebar when clicking outside)
+            $(document).off('click.mobileOutside').on('click.mobileOutside', function(e) {
+                // Logika hanya berjalan di tampilan Mobile
+                if ($(window).width() <= 768) {
+                    // Jika Sidebar sedang TERBUKA (artinya tidak ada class 'toggled')
+                    if (!sidebar.hasClass('toggled')) {
+                        // Cek apakah yang diklik BUKAN sidebar dan BUKAN tombol menu
+                        if (!$(e.target).closest('#sidebar').length && !$(e.target).closest('#sidebarCollapse').length) {
+                            sidebar.addClass('toggled');
+                            content.addClass('toggled');
+                        }
+                    }
+                }
             });
         }
 
