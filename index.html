@@ -47,9 +47,24 @@
         #tsparticles.in-background { z-index: 0 !important; opacity: 0.2 !important; filter: blur(2px); }
         
         #appContent { display: none; width: 100%; min-height: 100vh; position: relative; z-index: 50; } .wrapper { display: flex; width: 100%; align-items: stretch; }
-        #sidebar { min-width: var(--sidebar-width); max-width: var(--sidebar-width); background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); border-right: 1px solid var(--glass-border); position: fixed; height: 100vh; z-index: 1000; display: flex; flex-direction: column; transition: all 0.3s; }
+        #sidebar { min-width: var(--sidebar-width); max-width: var(--sidebar-width); background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); border-right: 1px solid var(--glass-border); position: fixed; height: 100vh; z-index: 1000; display: flex; flex-direction: column; transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #sidebar.toggled { margin-left: calc(var(--sidebar-width) * -1); } .sidebar-scroll { flex-grow: 1; overflow-y: auto; padding: 1rem; scrollbar-width: thin; }
-        #content { width: 100%; padding: 20px; margin-left: var(--sidebar-width); transition: all 0.3s; } #content.toggled { margin-left: 0; }
+        #content { width: 100%; padding: 20px; margin-left: var(--sidebar-width); transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); } #content.toggled { margin-left: 0; }
+        
+        /* OPTIMASI MOBILE (RESPONSIVE) */
+        @media (max-width: 768px) {
+            #sidebar {
+                /* Pada mobile, sidebar overlay di atas konten, tidak mendorong konten */
+                box-shadow: 5px 0 15px rgba(0,0,0,0.5); 
+            }
+            #content {
+                /* Konten selalu full width di mobile */
+                margin-left: 0 !important;
+                padding: 15px; /* Sedikit padding lebih kecil */
+            }
+            /* Saat sidebar muncul di mobile, beri backdrop gelap di konten (opsional, bisa via JS tapi CSS shadow di sidebar sudah cukup) */
+        }
+
         .nav-link { color: rgba(255,255,255,0.8); border-radius: 6px; padding: 10px 15px; margin-bottom: 4px; font-size: 0.9rem; transition: all 0.2s; display: flex; align-items: center; }
         .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; padding-left: 20px; } .nav-link.active { background: linear-gradient(90deg, var(--emerald-accent), transparent); color: #fff; border-left: 4px solid #fff; } .nav-link i { width: 25px; text-align: center; margin-right: 10px; }
         .submenu { padding-left: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 5px; } .submenu .nav-link { font-size: 0.85em; padding: 8px 12px; }
@@ -613,7 +628,12 @@
                     loadDashboardStats();
                 }
             } 
-            $('#sidebarCollapse').on('click', function(){$('#sidebar, #content').toggleClass('toggled')}); 
+            
+            // SIDEBAR TOGGLE LOGIC
+            $('#sidebarCollapse').on('click', function(){
+                // Manual toggle overrides mobile auto-hide logic momentarily
+                $('#sidebar, #content').toggleClass('toggled');
+            });
             
             // UPDATED TSPARTICLES CONFIGURATION (BOOK, DOCUMENT, MAIL, LINKS)
             tsParticles.load("tsparticles", { 
@@ -639,7 +659,60 @@
                     links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.2, width: 1 }
                 } 
             });
+
+            // Initialize Mobile Features
+            initMobileFeatures();
+            $(window).resize(initMobileFeatures);
         });
+
+        // MOBILE OPTIMIZATION & AUTO-HIDE NAVBAR
+        function initMobileFeatures() {
+            const isMobile = $(window).width() <= 768;
+            const sidebar = $('#sidebar');
+            const content = $('#content');
+            let sidebarTimer;
+
+            // 1. Initial State for Mobile - Hide sidebar by default
+            // We use 'toggled' class which shifts sidebar left (-width)
+            // On mobile, if we want to hide it initially, we add 'toggled'
+            // BUT wait, if we reload page on mobile, it should start hidden.
+            if (isMobile) {
+                // Only add if not already explicitly managed by user session in a real app, 
+                // but here we just reset on load/resize to safe state
+                if (!sidebar.hasClass('toggled')) {
+                    sidebar.addClass('toggled');
+                    content.addClass('toggled');
+                }
+            }
+
+            // 2. Auto-hide Logic
+            function resetSidebarTimer() {
+                // Only run on mobile and if sidebar is OPEN (i.e. does NOT have .toggled class)
+                if ($(window).width() <= 768 && !sidebar.hasClass('toggled')) {
+                    clearTimeout(sidebarTimer);
+                    sidebarTimer = setTimeout(() => {
+                        // Double check if still mobile and still open
+                        if ($(window).width() <= 768 && !sidebar.hasClass('toggled')) {
+                            sidebar.addClass('toggled');
+                            // On mobile content margin is always 0 via CSS !important, but we toggle class for consistency
+                            content.addClass('toggled'); 
+                        }
+                    }, 3000); // 3 Seconds
+                }
+            }
+
+            // Detect activity on sidebar to reset timer
+            // We listen to common interaction events
+            sidebar.off('mousemove touchstart click scroll').on('mousemove touchstart click scroll', function() {
+                resetSidebarTimer();
+            });
+
+            // Trigger timer start when sidebar is manually opened
+            $('#sidebarCollapse').off('click.mobileTimer').on('click.mobileTimer', function() {
+                // Wait slightly for the toggle animation/state change to finish then start timer
+                setTimeout(resetSidebarTimer, 300);
+            });
+        }
 
         // STATE PERSISTENCE HELPER (Modified to include Context Email)
         function saveAppState(tabId, context = null, contextEmail = null, contextName = null) {
