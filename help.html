@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pusat Bantuan - SIMAS KOESMA</title>
+    <link rel="icon" href="https://github.com/koesmasurat/simas/blob/main/logo%20rsud%202%20png.png?raw=true" type="image/png">
+    
+    <!-- CSS Libraries yang sama dengan Index -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital@1&display=swap" rel="stylesheet">
+    
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.11.1/tsparticles.bundle.min.js"></script>
+
+    <style>
+        /* TEMA VISUAL UTAMA (SAMA DENGAN INDEX.HTML) */
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-light: #f8f9fa;
+            --emerald-accent: #f97316; /* Oranye sesuai index */
+            --blue-accent: #3b82f6;
+            --dark-glass: rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #9a3412 0%, #0f172a 100%);
+            background-attachment: fixed;
+            color: var(--text-light);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Particles Container */
+        #tsparticles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Glassmorphism Containers */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .glass-header {
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 1.5rem;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Back Button */
+        .btn-back {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: all 0.3s;
+        }
+        .btn-back:hover {
+            background: var(--emerald-accent);
+            color: white;
+            transform: translateX(-5px);
+        }
+
+        /* Content Styling */
+        .help-content {
+            padding: 2rem;
+            background: #ffffff; /* White background for readability */
+            color: #333;
+            border-radius: 0 0 16px 16px;
+        }
+
+        /* Accordion Customization */
+        .accordion-item {
+            border: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+            border-radius: 8px !important;
+            overflow: hidden;
+        }
+        .accordion-button {
+            background-color: #f8fafc;
+            color: #1e293b;
+            font-weight: 600;
+        }
+        .accordion-button:not(.collapsed) {
+            background-color: #e0f2fe;
+            color: #0c4a6e;
+            box-shadow: none;
+        }
+        .accordion-button:focus {
+            box-shadow: none;
+            border-color: rgba(0,0,0,.125);
+        }
+
+        /* Card Guides */
+        .guide-card {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 20px;
+            transition: transform 0.2s;
+            height: 100%;
+        }
+        .guide-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            border-color: var(--blue-accent);
+        }
+        .icon-box {
+            width: 50px;
+            height: 50px;
+            background: #eff6ff;
+            color: var(--blue-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+
+        /* Flow Steps */
+        .step-list {
+            position: relative;
+            padding-left: 20px;
+            border-left: 2px solid #cbd5e1;
+        }
+        .step-item {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .step-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 5px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border: 3px solid var(--emerald-accent);
+            border-radius: 50%;
+        }
+        .step-title { font-weight: bold; color: #334155; }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.6);
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <!-- Background Animation (Sama dengan Index) -->
+    <div id="tsparticles"></div>
+
+    <div class="container py-5">
+        <!-- Main Panel -->
+        <div class="glass-panel animate__animated animate__fadeIn">
+            
+            <!-- Header -->
+            <div class="glass-header">
+                <div class="d-flex align-items-center gap-3">
+                    <img src="https://github.com/koesmasurat/simas/blob/main/logo%20rsud%202%20png.png?raw=true" width="50" alt="Logo">
+                    <div>
+                        <h4 class="mb-0 fw-bold text-white">Pusat Bantuan</h4>
+                        <small class="text-white-50">SIMAS KOESMA Enterprise v21.4</small>
+                    </div>
+                </div>
+                <!-- Tombol Kembali ke Index.html -->
+                <a href="index.html" class="btn btn-back px-4 py-2 rounded-pill fw-bold text-decoration-none">
+                    <i class="fas fa-arrow-left me-2"></i> Kembali ke Dashboard
+                </a>
+            </div>
+
+            <!-- Body Content (White Background) -->
+            <div class="help-content">
+                
+                <!-- Quick Navigation Pills -->
+                <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active rounded-pill px-4" id="pills-home-tab" data-bs-toggle="pill" data-bs-target="#pills-home" type="button">Panduan Cepat</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill px-4" id="pills-flow-tab" data-bs-toggle="pill" data-bs-target="#pills-flow" type="button">Alur Disposisi</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill px-4" id="pills-faq-tab" data-bs-toggle="pill" data-bs-target="#pills-faq" type="button">FAQ / Masalah</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="pills-tabContent">
+                    
+                    <!-- TAB 1: PANDUAN CEPAT -->
+                    <div class="tab-pane fade show active" id="pills-home">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="guide-card">
+                                    <div class="icon-box text-primary bg-primary-subtle"><i class="fas fa-envelope-open-text"></i></div>
+                                    <h5>Surat Masuk</h5>
+                                    <p class="text-muted small">Cara input dan proses surat masuk.</p>
+                                    <ol class="small ps-3 text-secondary">
+                                        <li>Buka menu <b>Input Surat Masuk</b>.</li>
+                                        <li>Isi Tanggal Surat, Pengirim, dan Perihal.</li>
+                                        <li><b>Nomor Agenda</b> akan terisi otomatis.</li>
+                                        <li>Upload file (PDF/Gambar). Klik Simpan.</li>
+                                        <li>Surat akan masuk ke <b>Inbox Direktur</b> untuk disposisi awal.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="guide-card">
+                                    <div class="icon-box text-success bg-success-subtle"><i class="fas fa-paper-plane"></i></div>
+                                    <h5>Surat Keluar</h5>
+                                    <p class="text-muted small">Booking nomor dan approval.</p>
+                                    <ol class="small ps-3 text-secondary">
+                                        <li>Buka menu <b>Input Surat Keluar</b>.</li>
+                                        <li>Klik tombol <b>Booking</b> jika belum ada nomor fisik, atau ketik manual.</li>
+                                        <li>Pilih <b>Pembuat Surat</b> (Bagian/Bidang).</li>
+                                        <li>Status awal adalah "Pending Approval".</li>
+                                        <li>Admin akan mengupdate status setelah TTD pimpinan.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="guide-card">
+                                    <div class="icon-box text-warning bg-warning-subtle"><i class="fas fa-user-secret"></i></div>
+                                    <h5>Fitur Delegasi</h5>
+                                    <p class="text-muted small">Mengakses Inbox Atasan/Bawahan.</p>
+                                    <ul class="small ps-3 text-secondary">
+                                        <li>Jika Anda diberi hak akses (misal: Sekretaris mengakses Inbox Direktur), menu akan muncul di sidebar kiri bawah.</li>
+                                        <li>Klik nama delegasi untuk masuk ke inbox mereka.</li>
+                                        <li>Setiap tindakan (disposisi/selesai) akan tercatat "a.n." (atas nama).</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="guide-card">
+                                    <div class="icon-box text-danger bg-danger-subtle"><i class="fas fa-search"></i></div>
+                                    <h5>Pencarian & Arsip</h5>
+                                    <p class="text-muted small">Mencari surat lama.</p>
+                                    <ul class="small ps-3 text-secondary">
+                                        <li>Gunakan <b>Pencarian Lanjut</b> di sidebar.</li>
+                                        <li>Bisa filter berdasarkan Tanggal, Kata Kunci, atau Kategori.</li>
+                                        <li>Menu <b>Arsipku</b> berisi surat yang sudah Anda tandai "Selesai".</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: ALUR DISPOSISI -->
+                    <div class="tab-pane fade" id="pills-flow">
+                        <div class="row align-items-center">
+                            <div class="col-md-5">
+                                <div class="alert alert-info border-0">
+                                    <h6 class="fw-bold"><i class="fas fa-info-circle me-2"></i>Logika Sistem</h6>
+                                    <p class="small mb-0">Sistem menggunakan hierarki bertingkat. Surat tidak bisa langsung lompat dari Direktur ke Staf, harus melalui Wadir dan Kabid/Kabag terlebih dahulu.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="step-list mt-3">
+                                    <div class="step-item">
+                                        <div class="step-title text-primary">1. Registrasi (Admin)</div>
+                                        <div class="small text-muted">Admin menginput surat di Loket. Status: <b>Menunggu Disposisi</b>.</div>
+                                    </div>
+                                    <div class="step-item">
+                                        <div class="step-title text-danger">2. Direktur</div>
+                                        <div class="small text-muted">Menerima surat. Memilih disposisi ke <b>Wadir (Umum/Pelayanan)</b>.</div>
+                                    </div>
+                                    <div class="step-item">
+                                        <div class="step-title text-warning">3. Wadir</div>
+                                        <div class="small text-muted">Menerima dari Direktur. Meneruskan ke <b>Kepala Bagian / Kepala Bidang</b> terkait.</div>
+                                    </div>
+                                    <div class="step-item">
+                                        <div class="step-title text-success">4. Kabag / Kabid</div>
+                                        <div class="small text-muted">Menerima dari Wadir. Meneruskan ke <b>Staf Pelaksana</b> atau Kepala Ruangan.</div>
+                                    </div>
+                                    <div class="step-item">
+                                        <div class="step-title text-dark">5. Staf Pelaksana</div>
+                                        <div class="small text-muted">Menerima instruksi akhir. Melakukan tindakan dan klik tombol <b>Selesai (Centang Hijau)</b>. Surat masuk ke <b>Arsipku</b>.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: FAQ -->
+                    <div class="tab-pane fade" id="pills-faq">
+                        <div class="accordion" id="accordionFAQ">
+                            <!-- Q1 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                        <i class="fas fa-question-circle me-2 text-primary"></i> Saya salah input tujuan disposisi, bagaimana cara editnya?
+                                    </button>
+                                </h2>
+                                <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#accordionFAQ">
+                                    <div class="accordion-body small text-secondary">
+                                        Hanya user dengan hak akses khusus (Admin/Super Admin) yang bisa mengedit tujuan disposisi. 
+                                        Buka menu <b>Arsip Masuk</b>, cari suratnya, lalu klik tombol <i class="fas fa-link text-danger"></i> (Edit Disposisi) di kolom Aksi.
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Q2 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                        <i class="fas fa-upload me-2 text-primary"></i> File gagal diupload atau loading terus menerus?
+                                    </button>
+                                </h2>
+                                <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#accordionFAQ">
+                                    <div class="accordion-body small text-secondary">
+                                        1. Pastikan ukuran file <b>di bawah 5MB</b>.<br>
+                                        2. Pastikan format file adalah PDF, JPG, atau PNG.<br>
+                                        3. Cek koneksi internet Anda.<br>
+                                        Jika masih gagal, mungkin server penyimpanan sedang penuh/dialihkan. Hubungi IT untuk cek status "Gudang Penyimpanan" di menu Pengaturan.
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Q3 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                        <i class="fas fa-history me-2 text-primary"></i> Bagaimana cara melihat siapa saja yang sudah membaca surat?
+                                    </button>
+                                </h2>
+                                <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#accordionFAQ">
+                                    <div class="accordion-body small text-secondary">
+                                        Klik tombol <i class="fas fa-eye text-info"></i> (Mata) pada daftar surat (Inbox atau Arsip). 
+                                        Akan muncul <i>Timeline History</i> lengkap mulai dari surat diterima, didisposisi oleh siapa, jam berapa, hingga siapa yang menyelesaikan.
+                                    </div>
+                                </div>
+                            </div>
+                             <!-- Q4 -->
+                             <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                        <i class="fas fa-users me-2 text-primary"></i> Mengapa saya tidak bisa melihat menu "Input Surat"?
+                                    </button>
+                                </h2>
+                                <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#accordionFAQ">
+                                    <div class="accordion-body small text-secondary">
+                                        Menu Input dibatasi hak aksesnya. Biasanya hanya Admin Loket atau Sekretariat yang memilikinya. 
+                                        Jika Anda membutuhkan akses, hubungi Super Admin untuk mengedit "Permissions" akun Anda di menu Pengaturan User.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-light rounded border text-center">
+                            <p class="mb-1 fw-bold">Masih butuh bantuan?</p>
+                            <p class="small text-muted mb-2">Hubungi Tim IT RSUD dr. R. Koesma</p>
+                            <a href="https://wa.me/6281234567890" class="btn btn-success btn-sm rounded-pill"><i class="fab fa-whatsapp me-1"></i> Chat WhatsApp Support</a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 RSUD dr. R. KOESMA - SIMAS Enterprise v21.4</p>
+    </footer>
+
+    <script>
+        // INISIALISASI PARTIKEL (SAMA DENGAN INDEX.HTML AGAR KONSISTEN)
+        $(document).ready(function() {
+            tsParticles.load("tsparticles", { 
+                fpsLimit: 60, 
+                particles: { 
+                    number: { value: 30, density: { enable: true, value_area: 800 } }, 
+                    color: { value: "#ffffff" }, 
+                    shape: { 
+                        type: "image", 
+                        image: [ 
+                            { src: "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23ffffff' d='M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48H48zM0 176V384c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V176L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z'/%3E%3C/svg%3E", width: 32, height: 32 },
+                            { src: "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23ffffff' d='M464 64H48C21.5 64 0 85.5 0 112v288c0 26.5 21.5 48 48 48h416c26.5 0 48-21.5 48-48V112c0-26.5-21.5-48-48-48zM48 96h416c8.8 0 16 7.2 16 16v41.4c-21.9 5.6-32 26.7-32 26.7H48s-10.1-21.1-32-26.7V112c0-8.8 7.2-16 16-16zm416 320H48c-8.8 0-16-7.2-16-16V192.6c21.9 5.6 32 26.7 32 26.7h416s10.1-21.1 32-26.7v127.4c0 8.8-7.2 16-16 16z'/%3E%3C/svg%3E", width: 32, height: 32 }
+                        ] 
+                    }, 
+                    opacity: { value: 0.6, random: true }, 
+                    size: { value: 20, random: true }, 
+                    move: { enable: true, speed: 2 },
+                    links: { enable: true, distance: 150, color: "#ffffff", opacity: 0.2, width: 1 }
+                } 
+            });
+        });
+    </script>
+</body>
+</html>
