@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIMAS KOESMA</title>
+    <title>SIMAS KOESMA - Enterprise</title>
     <link rel="icon" href="https://github.com/koesmasurat/simas/blob/main/logo%20rsud%202%20png.png?raw=true" type="image/png">
     
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -91,6 +91,47 @@
         .timeline-content { background: #f8f9fa; padding: 10px 15px; border-radius: 8px; border: 1px solid #e9ecef; }
         .timeline-title { font-weight: bold; margin-bottom: 2px; font-size: 0.95rem; }
         .timeline-actor { font-size: 0.85rem; color: #007bff; margin-bottom: 5px; font-weight: 600; }
+
+        /* KHUSUS POPUP DISPOSISI - THEMA GLASS */
+        #modalDisposisi .modal-content {
+            background: rgba(30, 30, 40, 0.85); /* Glass Dark */
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+        }
+        #modalDisposisi .modal-header {
+            background: rgba(255, 193, 7, 0.2); /* Sentuhan Warning Transparan */
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        #modalDisposisi .modal-title {
+            color: #fff !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        #modalDisposisi .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%); /* Tombol close jadi putih */
+        }
+        #modalDisposisi label {
+            color: #e0e0e0 !important;
+        }
+        #modalDisposisi .alert-light {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #dispPerihal {
+            color: #ffc107; /* Warna emas agar menonjol */
+        }
+        /* Memastikan input tetap putih agar mudah dibaca */
+        #modalDisposisi .form-control {
+            background-color: #ffffff;
+            color: #333;
+            border: none;
+        }
+        #modalDisposisi .form-control:focus {
+            box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -843,7 +884,34 @@
         $('#formUpdateProfile').on('submit', function(e){ e.preventDefault(); const d = { type: 'update_user_profile', email: $('#prof_email').val(), name: $('#prof_nama').val(), bidang: $('#prof_bidang').val(), wa: $('#prof_wa').val(), requestor: currentUserEmail }; showLoading(true); fetch(GAS_URL, {method:'POST', body:JSON.stringify(d)}).then(r=>r.json()).then(r=>{ showLoading(false); if(r.status === 'success') { Swal.fire('Berhasil', 'Profil disimpan', 'success'); sessionStorage.setItem('userName', d.name); sessionStorage.setItem('userBidang', d.bidang); $('#userDisplayName').text(d.name); bootstrap.Modal.getInstance(document.getElementById('modalUpdateProfile')).hide(); } else { Swal.fire('Gagal', r.message, 'error'); } }); });
         
         function openArsipku(e) { activateTab('arsipku-container', e, loadArsipku); saveAppState('arsipku-container', null); }
-        function loadArsipku() { showLoading(true); fetch(`${GAS_URL}?action=read_arsip_keluar&email=${currentUserEmail}`).then(r => r.json()).then(r => { showLoading(false); const dt = $('#tableArsipku').DataTable({destroy: true, order: [[1, 'desc']]}); dt.clear(); if(r.data) r.data.forEach(d => { dt.row.add([d.tglTerima, d.agenda, d.perihal, d.pengirim, d.keterangan || '-', d.file ? `<a href="${d.file}" target="_blank">Lihat</a>` : '-']); }); dt.draw(); }); }
+        
+        // PERBAIKAN: Mengganti action menjadi 'read_arsipku' dan menambahkan catch error
+        function loadArsipku() { 
+            showLoading(true); 
+            fetch(`${GAS_URL}?action=read_arsipku&email=${currentUserEmail}`)
+            .then(r => r.json())
+            .then(r => { 
+                showLoading(false); 
+                const dt = $('#tableArsipku').DataTable({destroy: true, order: [[1, 'desc']]}); 
+                dt.clear(); 
+                if(r.data) r.data.forEach(d => { 
+                    dt.row.add([
+                        d.tglTerima, 
+                        d.agenda, 
+                        d.perihal, 
+                        d.pengirim, 
+                        d.keterangan || '-', 
+                        d.file ? `<a href="${d.file}" target="_blank">Lihat</a>` : '-'
+                    ]); 
+                }); 
+                dt.draw(); 
+            })
+            .catch(e => {
+                showLoading(false);
+                console.error(e);
+                Swal.fire('Error', 'Gagal memuat data Arsipku', 'error');
+            });
+        }
 
         function openFinishModal(agenda) { $('#fd_agenda').val(agenda); $('#fd_note').val(''); new bootstrap.Modal(document.getElementById('modalFinishDisposition')).show(); }
 
@@ -913,6 +981,15 @@
                 dt.clear();
                 if(r.data) r.data.forEach(d=>{
                     let btnAction = '';
+                    
+                    // --- SECURITY FIX: SANITIZE PERIHAL FOR ONCLICK ---
+                    // Mengganti quote single/double dan newline agar tidak merusak script
+                    const safePerihal = (d.perihal || "")
+                        .replace(/\\/g, "\\\\")   // Escape backslash
+                        .replace(/'/g, "\\'")     // Escape single quote
+                        .replace(/"/g, "&quot;")  // Escape double quote (HTML attribute safe)
+                        .replace(/[\r\n]+/g, " "); // Hapus newline
+
                     // Action Buttons Logic
                     btnAction = `<div class="btn-group btn-group-sm">`;
                     // 1. Tombol History (Mata) - Added as requested
@@ -920,10 +997,10 @@
 
                     if(currentInboxLevel === 'staf') {
                         // Staf B acting as Staf A can perform actions
-                        btnAction += `<button class="btn btn-warning" title="Disposisi Lanjut" onclick="openDisposisiModal('${d.id}','${d.perihal}')"><i class="fas fa-share"></i></button>`;
+                        btnAction += `<button class="btn btn-warning" title="Disposisi Lanjut" onclick="openDisposisiModal('${d.id}','${safePerihal}')"><i class="fas fa-share"></i></button>`;
                         btnAction += `<button class="btn btn-success" title="Selesaikan Tugas" onclick="openFinishModal('${d.agenda}')"><i class="fas fa-check"></i></button>`;
                     } else {
-                        btnAction += `<button class="btn btn-warning" onclick="openDisposisiModal('${d.id}','${d.perihal}')">Proses</button>`;
+                        btnAction += `<button class="btn btn-warning" onclick="openDisposisiModal('${d.id}','${safePerihal}')">Proses</button>`;
                     }
                     btnAction += `</div>`;
 
