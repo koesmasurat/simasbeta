@@ -628,6 +628,7 @@
         let currentInboxContextName = "";
         let allUsersList = []; 
         let dashboardChart = null; // Store chart instance
+        let currentDelegatedSubordinates = []; // NEW: Variable to store delegator's subordinates
         
         $(document).ready(function() { 
             if(sessionStorage.getItem('isLoggedIn')==='true'){ 
@@ -929,10 +930,25 @@
             currentInboxContextEmail = overrideEmail || currentUserEmail;
             currentInboxContextName = overrideName || "";
             
+            // RESET daftar bawahan delegasi
+            currentDelegatedSubordinates = []; 
+
             let title = l.replace(/_/g, ' ').toUpperCase();
             if (overrideName) {
                 title += `: ${overrideName}`; // Show Delegated Name
                 $('#dispDelegationBanner').show();
+                
+                // --- LOGIKA BARU: AMBIL BAWAHAN SI DELEGASI (B) ---
+                if(overrideEmail && overrideEmail !== currentUserEmail) {
+                     fetch(`${GAS_URL}?action=get_my_profile&email=${overrideEmail}`)
+                        .then(r => r.json())
+                        .then(r => {
+                            if(r.status === 'success' && r.data.subordinates) {
+                                currentDelegatedSubordinates = r.data.subordinates;
+                            }
+                        });
+                }
+                // --------------------------------------------------
             } else {
                 $('#dispDelegationBanner').hide();
             }
@@ -1280,7 +1296,14 @@
         function openDisposisiModal(id, p) { 
             $('#dispIdSurat').val(id); $('#dispPerihal').text(p); $('#dispInstruksi').val(''); 
             const container = $('#dispTargetContainer'); container.empty(); 
-            const subs = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]"); 
+            
+            // --- MODIFIED: CONTEXT AWARE SUBORDINATES ---
+            let subs = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]");
+            // Check if we are in delegation mode AND we have successfully fetched the delegator's subordinates
+            if (currentInboxContextEmail !== currentUserEmail && currentDelegatedSubordinates.length > 0) {
+                 subs = currentDelegatedSubordinates;
+            }
+            
             let t = []; 
             if (currentInboxLevel === 'direktur') t = ['Wadir Umum & Keuangan', 'Wadir Pelayanan']; 
             else if (currentInboxLevel === 'wadir_adm') t = ['Bagian Administrasi & Umum', 'Bagian Keuangan', 'Bagian Program & Pelaporan']; 
