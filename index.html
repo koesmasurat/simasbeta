@@ -626,13 +626,19 @@
         let currentUserEmail = "", currentInboxLevel = "", currentArsipScope = "";
         let currentInboxContextEmail = ""; // To track whose inbox we are viewing
         let currentInboxContextName = "";
+        let currentContextSubordinates = []; // NEW: Store subordinates of current context (Me or Delegated)
         let allUsersList = []; 
         let dashboardChart = null; // Store chart instance
-        let currentDelegatedSubordinates = []; // NEW: Variable to store delegator's subordinates
         
         $(document).ready(function() { 
             if(sessionStorage.getItem('isLoggedIn')==='true'){ 
-                currentUserEmail=sessionStorage.getItem('userEmail'); 
+                currentUserEmail=sessionStorage.getItem('userEmail');
+                
+                // Initialize default subordinates
+                try {
+                    currentContextSubordinates = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]");
+                } catch(e) { currentContextSubordinates = []; }
+
                 showApp(); 
                 renderSidebarPermissions(); 
                 loadRefCodes(); 
@@ -861,11 +867,34 @@
         function logout(){sessionStorage.clear();location.reload()}
         
         // ... (Credential & Profile functions maintained) ...
-        function handleCredentialResponse(r){ showLoading(true); fetch(GAS_URL,{method:'POST',body:JSON.stringify({type:'google_login',credential:r.credential})}).then(res=>res.json()).then(res=>{ showLoading(false); if(res.status==='success'){ 
-            sessionStorage.setItem('isLoggedIn','true'); sessionStorage.setItem('userEmail',res.data.email); sessionStorage.setItem('userRole',res.data.role); sessionStorage.setItem('userPermissions',JSON.stringify(res.data.permissions)); sessionStorage.setItem('userSubordinates',JSON.stringify(res.data.subordinates)); 
-            // Save Delegations
-            sessionStorage.setItem('userDelegations', JSON.stringify(res.data.delegations || []));
-            sessionStorage.setItem('userName',res.data.name); sessionStorage.setItem('userBidang', res.data.bidang); currentUserEmail=res.data.email; showApp(); renderSidebarPermissions(); loadRefCodes(); if(res.data.profileIncomplete) openUpdateProfileModal(res.data.email, res.data.name, true); } else { Swal.fire('Login Gagal',res.message,'error') } }).catch(e=>{ showLoading(false); Swal.fire('Error','Koneksi','error') }) }
+        function handleCredentialResponse(r){ 
+            showLoading(true); 
+            fetch(GAS_URL,{method:'POST',body:JSON.stringify({type:'google_login',credential:r.credential})})
+            .then(res=>res.json())
+            .then(res=>{ 
+                showLoading(false); 
+                if(res.status==='success'){ 
+                    sessionStorage.setItem('isLoggedIn','true'); 
+                    sessionStorage.setItem('userEmail',res.data.email); 
+                    sessionStorage.setItem('userRole',res.data.role); 
+                    sessionStorage.setItem('userPermissions',JSON.stringify(res.data.permissions)); 
+                    sessionStorage.setItem('userSubordinates',JSON.stringify(res.data.subordinates)); 
+                    
+                    // NEW: Init current subordinates
+                    currentContextSubordinates = res.data.subordinates || [];
+                    
+                    // Save Delegations
+                    sessionStorage.setItem('userDelegations', JSON.stringify(res.data.delegations || []));
+                    sessionStorage.setItem('userName',res.data.name); 
+                    sessionStorage.setItem('userBidang', res.data.bidang); 
+                    currentUserEmail=res.data.email; 
+                    showApp(); 
+                    renderSidebarPermissions(); 
+                    loadRefCodes(); 
+                    if(res.data.profileIncomplete) openUpdateProfileModal(res.data.email, res.data.name, true); 
+                } else { Swal.fire('Login Gagal',res.message,'error') } 
+            }).catch(e=>{ showLoading(false); Swal.fire('Error','Koneksi','error') }) 
+        }
         function openUpdateProfileModal(email, name, force=false) { $('#prof_email').val(email); $('#prof_nama').val(name); $('#prof_bidang').val(sessionStorage.getItem('userBidang') || ''); if(force) { $('#btnCancelProfile').hide(); new bootstrap.Modal(document.getElementById('modalUpdateProfile'), {backdrop: 'static', keyboard: false}).show(); } else { $('#btnCancelProfile').show(); new bootstrap.Modal(document.getElementById('modalUpdateProfile')).show(); } }
         function openMyProfile() { showLoading(true); fetch(`${GAS_URL}?action=get_my_profile&email=${currentUserEmail}`).then(r=>r.json()).then(r=>{ showLoading(false); if(r.status === 'success') { $('#prof_email').val(r.data.email); $('#prof_nama').val(r.data.name); $('#prof_bidang').val(r.data.bidang); $('#prof_wa').val(r.data.wa); openUpdateProfileModal(r.data.email, r.data.name, false); } else { Swal.fire('Error', 'Gagal memuat profil', 'error'); } }); }
         $('#formUpdateProfile').on('submit', function(e){ e.preventDefault(); const d = { type: 'update_user_profile', email: $('#prof_email').val(), name: $('#prof_nama').val(), bidang: $('#prof_bidang').val(), wa: $('#prof_wa').val(), requestor: currentUserEmail }; showLoading(true); fetch(GAS_URL, {method:'POST', body:JSON.stringify(d)}).then(r=>r.json()).then(r=>{ showLoading(false); if(r.status === 'success') { Swal.fire('Berhasil', 'Profil disimpan', 'success'); sessionStorage.setItem('userName', d.name); sessionStorage.setItem('userBidang', d.bidang); $('#userDisplayName').text(d.name); bootstrap.Modal.getInstance(document.getElementById('modalUpdateProfile')).hide(); } else { Swal.fire('Gagal', r.message, 'error'); } }); });
@@ -929,26 +958,28 @@
             // Set context email (default to self if not provided)
             currentInboxContextEmail = overrideEmail || currentUserEmail;
             currentInboxContextName = overrideName || "";
-            
-            // RESET daftar bawahan delegasi
-            currentDelegatedSubordinates = []; 
 
+            // --- FIX: CONTEXT AWARE SUBORDINATES ---
+            // Jika mode Delegasi (email berbeda), fetch bawahan milik pemilik inbox (Staf B)
+            if (overrideEmail && overrideEmail !== currentUserEmail) {
+                currentContextSubordinates = []; // Reset agar tidak salah pakai bawahan lama
+                fetch(`${GAS_URL}?action=get_my_profile&email=${overrideEmail}`)
+                .then(r=>r.json())
+                .then(r=>{
+                    if(r.status === 'success') {
+                        currentContextSubordinates = r.data.subordinates || [];
+                    }
+                });
+            } else {
+                // Mode Normal: Gunakan bawahan saya sendiri dari session
+                currentContextSubordinates = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]");
+            }
+            // ---------------------------------------
+            
             let title = l.replace(/_/g, ' ').toUpperCase();
             if (overrideName) {
                 title += `: ${overrideName}`; // Show Delegated Name
                 $('#dispDelegationBanner').show();
-                
-                // --- LOGIKA BARU: AMBIL BAWAHAN SI DELEGASI (B) ---
-                if(overrideEmail && overrideEmail !== currentUserEmail) {
-                     fetch(`${GAS_URL}?action=get_my_profile&email=${overrideEmail}`)
-                        .then(r => r.json())
-                        .then(r => {
-                            if(r.status === 'success' && r.data.subordinates) {
-                                currentDelegatedSubordinates = r.data.subordinates;
-                            }
-                        });
-                }
-                // --------------------------------------------------
             } else {
                 $('#dispDelegationBanner').hide();
             }
@@ -1028,7 +1059,57 @@
 
         function openArsipPage(t, s, e) { currentArsipScope = s; if(t==='masuk') { activateTab('arsip-masuk-container', e, loadArsipMasuk); saveAppState('arsip-masuk-container', s); } else { activateTab('arsip-keluar-container', e, loadArsipKeluar); saveAppState('arsip-keluar-container', s); } }
 
-        function backupDatabase(){ showLoading(true); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ type: 'get_backup_data', requestor: currentUserEmail }) }).then(r => r.json()).then(r => { showLoading(false); if(r.status === 'success'){ const wb = XLSX.utils.book_new(); const ws1 = XLSX.utils.aoa_to_sheet(r.data.suratMasuk); const ws2 = XLSX.utils.aoa_to_sheet(r.data.suratKeluar); XLSX.utils.book_append_sheet(wb, ws1, "SuratMasuk"); XLSX.utils.book_append_sheet(wb, ws2, "SuratKeluar"); const date = new Date().toISOString().slice(0,10); XLSX.writeFile(wb, `Backup_SIMAS_${date}.xlsx`); } else { Swal.fire('Gagal', 'Anda tidak memiliki hak akses backup.', 'error'); } }); }
+        function backupDatabase() {
+            showLoading(true);
+            fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    type: 'get_backup_data',
+                    requestor: currentUserEmail
+                })
+            }).then(r => r.json()).then(r => {
+                showLoading(false);
+                if (r.status === 'success') {
+                    // LOGIC BARU: Menerima Base64 string dari backend (Tahap 2) dan convert ke Blob
+                    try {
+                        // Perhatikan: Backend nanti harus mengirim data base64 di properti r.data atau r.base64
+                        // Kita asumsikan backend mengirim string base64 di r.data
+                        const base64Data = r.data;
+
+                        // Konversi Base64 ke Blob
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+                        // Download File
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        const date = new Date().toISOString().slice(0, 10);
+                        a.download = `FULL_BACKUP_SIMAS_${date}.xlsx`; // Nama file output
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        
+                        Swal.fire('Berhasil', 'Full Backup berhasil didownload', 'success');
+                    } catch (e) {
+                        console.error(e);
+                        // Pesan ini muncul jika backend belum diupdate (masih kirim array JSON, bukan string base64)
+                        Swal.fire('Peringatan', 'Format data backend belum sesuai (Lanjutkan ke Tahap 2)', 'warning');
+                    }
+                } else {
+                    Swal.fire('Gagal', 'Anda tidak memiliki hak akses backup.', 'error');
+                }
+            }).catch(e => {
+                showLoading(false);
+                Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');
+            });
+        }
         
         function renderSidebarPermissions(){ 
             const r=sessionStorage.getItem('userRole'); 
@@ -1297,13 +1378,11 @@
             $('#dispIdSurat').val(id); $('#dispPerihal').text(p); $('#dispInstruksi').val(''); 
             const container = $('#dispTargetContainer'); container.empty(); 
             
-            // --- MODIFIED: CONTEXT AWARE SUBORDINATES ---
-            let subs = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]");
-            // Check if we are in delegation mode AND we have successfully fetched the delegator's subordinates
-            if (currentInboxContextEmail !== currentUserEmail && currentDelegatedSubordinates.length > 0) {
-                 subs = currentDelegatedSubordinates;
-            }
-            
+            // --- FIX: USE CONTEXT SUBORDINATES INSTEAD OF STATIC SESSION ---
+            // Old: const subs = JSON.parse(sessionStorage.getItem('userSubordinates') || "[]"); 
+            const subs = currentContextSubordinates; 
+            // ---------------------------------------------------------------
+
             let t = []; 
             if (currentInboxLevel === 'direktur') t = ['Wadir Umum & Keuangan', 'Wadir Pelayanan']; 
             else if (currentInboxLevel === 'wadir_adm') t = ['Bagian Administrasi & Umum', 'Bagian Keuangan', 'Bagian Program & Pelaporan']; 
