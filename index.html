@@ -65,7 +65,26 @@
         .nav-link { color: rgba(255,255,255,0.8); border-radius: 6px; padding: 10px 15px; margin-bottom: 4px; font-size: 0.9rem; transition: all 0.2s; display: flex; align-items: center; }
         .nav-link:hover { background: rgba(255,255,255,0.15); color: #fff; padding-left: 20px; } .nav-link.active { background: linear-gradient(90deg, var(--emerald-accent), transparent); color: #fff; border-left: 4px solid #fff; } .nav-link i { width: 25px; text-align: center; margin-right: 10px; }
         .submenu { padding-left: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 5px; } .submenu .nav-link { font-size: 0.85em; padding: 8px 12px; }
-        .badge-count { font-size: 0.7rem; padding: 2px 7px; border-radius: 10px; margin-left: auto; background: var(--blue-accent); display: none; } .badge-count.has-data { display: inline-block; background: #ef4444; animation: pulse 2s infinite; }
+        
+        /* UPDATED BADGE STYLE */
+        .badge-count { 
+            font-size: 0.75rem; 
+            padding: 3px 8px; 
+            border-radius: 20px; 
+            margin-left: auto; 
+            background: rgba(255, 255, 255, 0.1); 
+            color: #ccc;
+            display: none; /* Hidden by default if 0 */
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        } 
+        .badge-count.has-data { 
+            display: inline-block; 
+            background: #ef4444; 
+            color: #fff;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
         .table { font-size: 0.85rem; } .table th { background-color: #f1f5f9; color: #475569; font-weight: 600; }
         .modal-content { background: #fff; color: #333; }
         .perm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.8rem; }
@@ -162,7 +181,8 @@
                 </div>
                 
                 <div class="sidebar-scroll">
-                    <button class="nav-link w-100 text-start" id="btn-home" onclick="activateTab('home-content', this); loadDashboardStats();"><i class="fas fa-home"></i> Beranda</button>
+                    <!-- ADDED: updateSidebarBadges() to reload counts -->
+                    <button class="nav-link w-100 text-start" id="btn-home" onclick="activateTab('home-content', this); updateSidebarBadges();"><i class="fas fa-home"></i> Beranda</button>
                     <!-- PROFIL SAYA -->
                     <button class="nav-link w-100 text-start" onclick="openMyProfile()"><i class="fas fa-user-circle"></i> Profil Saya</button>
                     
@@ -180,8 +200,8 @@
                     <!-- INBOXKU (DEFAULT FOR ALL) -->
                     <button class="nav-link w-100 text-start" onclick="openDisposisiPage('staf', this)"><i class="fas fa-inbox"></i> Inboxku <span class="badge-count" id="count-staf">0</span></button>
                     
-                    <!-- ARSIPKU (NEW) -->
-                    <button class="nav-link w-100 text-start text-warning" onclick="openArsipku(this)"><i class="fas fa-archive"></i> Arsipku (Selesai)</button>
+                    <!-- ARSIPKU (NEW) - Added Badge -->
+                    <button class="nav-link w-100 text-start text-warning" onclick="openArsipku(this)"><i class="fas fa-archive"></i> Arsipku (Selesai) <span class="badge-count" id="count-arsipku">0</span></button>
                     
                     <!-- MENU DELEGASI (DYNAMICALLY FILLED) -->
                     <div id="delegationMenuContainer" style="display:none;">
@@ -688,6 +708,9 @@
                     // Default to dashboard
                     loadDashboardStats();
                 }
+                
+                // NEW: Update Sidebar Badges on Load
+                updateSidebarBadges();
             } 
             
             // SIDEBAR TOGGLE LOGIC
@@ -802,6 +825,83 @@
             }
         }
         
+        // --- NEW: FUNCTION TO UPDATE ALL BADGES IN SIDEBAR ---
+        function updateSidebarBadges() {
+             // 1. Basic Stats (Inboxku & Arsipku)
+             fetch(`${GAS_URL}?action=get_dashboard_stats&email=${currentUserEmail}`)
+            .then(r=>r.json())
+            .then(r => {
+                if(r.status === 'success') {
+                    const d = r.data;
+                    updateBadge('#count-staf', d.inbox);
+                    updateBadge('#count-arsipku', d.arsipku);
+                    // Also update dashboard numbers if on dashboard
+                    animateValue("dashInboxVal", parseInt($('#dashInboxVal').text())||0, d.inbox, 1000);
+                    animateValue("dashArsipVal", parseInt($('#dashArsipVal').text())||0, d.arsipku, 1000);
+                    animateValue("dashMasukVal", parseInt($('#dashMasukVal').text())||0, d.suratMasukMonth, 1000);
+                }
+            });
+
+            // 2. Advanced Counts (Only if Admin/Super)
+            const role = sessionStorage.getItem('userRole');
+            const perms = JSON.parse(sessionStorage.getItem('userPermissions')||"[]");
+            // Check if user sees any admin inboxes (permission starts with 'inbox_')
+            if(role === 'Super Admin' || perms.some(p => p.startsWith('inbox_') && p !== 'inbox_staf')) {
+                // Fetch ALL active letters to count them client-side
+                fetch(`${GAS_URL}?action=read_arsip_masuk&scope=all`) 
+                .then(r=>r.json())
+                .then(r => {
+                    if(r.status === 'success') {
+                        const counts = {
+                            direktur: 0,
+                            wadir_adm: 0, wadir_pel: 0,
+                            kabag_umum: 0, kabag_keuangan: 0, kabag_progpel: 0,
+                            kabid_yanmed: 0, kabid_penunjang: 0, kabid_keperawatan: 0
+                        };
+
+                        r.data.forEach(row => {
+                            if(row.status === 'Menunggu Disposisi') counts.direktur++;
+                            else if(row.status === 'Proses: Wadir') {
+                                const t = (row.tujuanDirektur || "").toLowerCase();
+                                if(t.includes('umum') || t.includes('administrasi')) counts.wadir_adm++;
+                                else if(t.includes('pelayanan')) counts.wadir_pel++;
+                            }
+                            else if(row.status === 'Proses: Kabid') {
+                                const t = (row.tujuanWadir || "").toLowerCase();
+                                if(t.includes('umum')) counts.kabag_umum++;
+                                else if(t.includes('keuang')) counts.kabag_keuangan++;
+                                else if(t.includes('program')) counts.kabag_progpel++;
+                                else if(t.includes('medik')) counts.kabid_yanmed++;
+                                else if(t.includes('penunjang')) counts.kabid_penunjang++;
+                                else if(t.includes('perawatan') || t.includes('kep')) counts.kabid_keperawatan++;
+                            }
+                        });
+
+                        // Update badges
+                        updateBadge('#count-direktur', counts.direktur);
+                        updateBadge('#count-wadir_adm', counts.wadir_adm);
+                        updateBadge('#count-wadir_pel', counts.wadir_pel);
+                        updateBadge('#count-kabag_umum', counts.kabag_umum);
+                        updateBadge('#count-kabag_keuangan', counts.kabag_keuangan);
+                        updateBadge('#count-kabag_progpel', counts.kabag_progpel);
+                        updateBadge('#count-kabid_yanmed', counts.kabid_yanmed);
+                        updateBadge('#count-kabid_penunjang', counts.kabid_penunjang);
+                        updateBadge('#count-kabid_keperawatan', counts.kabid_keperawatan);
+                    }
+                });
+            }
+        }
+
+        function updateBadge(selector, count) {
+            const el = $(selector);
+            el.text(count);
+            if(count > 0) {
+                el.addClass('has-data').css('display', 'inline-block'); // Force display
+            } else {
+                el.removeClass('has-data').hide();
+            }
+        }
+
         // NEW DASHBOARD LOGIC
         function loadDashboardStats() {
             // Update Greeting & Date
@@ -819,19 +919,16 @@
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             $('#dashDate').text(now.toLocaleDateString('id-ID', options));
 
-            // Fetch Stats
+            // Use the new centralized function
+            updateSidebarBadges();
+            
+            // Also fetch for chart (uses same endpoint internally in updateSidebarBadges, but chart needs the full object)
+            // Ideally updateSidebarBadges handles text, we handle chart here.
             fetch(`${GAS_URL}?action=get_dashboard_stats&email=${currentUserEmail}`)
             .then(r=>r.json())
             .then(r => {
                 if(r.status === 'success') {
-                    const d = r.data;
-                    // Animate Numbers
-                    animateValue("dashInboxVal", 0, d.inbox, 1000);
-                    animateValue("dashMasukVal", 0, d.suratMasukMonth, 1000);
-                    animateValue("dashArsipVal", 0, d.arsipku, 1000);
-                    
-                    // Render Chart
-                    renderDashboardChart(d.chartLabels, d.chartData);
+                    renderDashboardChart(r.data.chartLabels, r.data.chartData);
                 }
             });
         }
@@ -919,6 +1016,9 @@
                     renderSidebarPermissions(); 
                     loadRefCodes(); 
                     if(res.data.profileIncomplete) openUpdateProfileModal(res.data.email, res.data.name, true); 
+                    
+                    // Trigger badge update on login
+                    updateSidebarBadges();
                 } else { Swal.fire('Login Gagal',res.message,'error') } 
             }).catch(e=>{ showLoading(false); Swal.fire('Error','Koneksi','error') }) 
         }
@@ -983,7 +1083,7 @@
 
             fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
             .then(r => r.json())
-            .then(r => { showLoading(false); if(r.status === 'success') { Swal.fire('Sukses', 'Tugas diselesaikan.', 'success'); refreshCurrentDisposisi(); } else { Swal.fire('Gagal', r.message, 'error'); } });
+            .then(r => { showLoading(false); if(r.status === 'success') { Swal.fire('Sukses', 'Tugas diselesaikan.', 'success'); refreshCurrentDisposisi(); updateSidebarBadges(); } else { Swal.fire('Gagal', r.message, 'error'); } });
         }
 
         // --- UPDATED DISPOSISI PAGE (Delegation Support) ---
@@ -1089,6 +1189,9 @@
                     ]);
                 });
                 dt.draw();
+                
+                // ALSO UPDATE BADGES
+                updateSidebarBadges();
             });
         }
 
@@ -1294,8 +1397,8 @@
                     // --- BUILD WHATSAPP MESSAGE START ---
                     let waText = `*DETAIL SURAT MASUK*\n`;
                     waText += `--------------------\n`;
-                    waText += `🔗 Link File: ${fileUrl ? fileUrl : '(Tidak ada file)'}\n`;
-                    waText += `🏷️ Perihal: ${r.data.perihal}\n`;
+                    waText += `📂 Link File: ${fileUrl ? fileUrl : '(Tidak ada file)'}\n`;
+                    waText += `📝 Perihal: ${r.data.perihal}\n`;
                     waText += `📅 Tgl Surat: ${r.data.tglSurat}\n`;
                     waText += `📥 Tgl Terima: ${tglTerima || '-'}\n\n`;
                     waText += `*RIWAYAT DISPOSISI:*\n`;
@@ -1305,7 +1408,7 @@
                         html += `<div class="timeline-item ${h.status}"><div class="timeline-date">${h.timestamp}</div><div class="timeline-content"><div class="timeline-title">${h.stage}</div><div class="timeline-actor">${h.actor}</div><div class="small text-muted mb-1">${h.action}</div><div class="small fst-italic border-top pt-1 mt-1 text-secondary">${h.desc}</div></div></div>`;
                         
                         // --- APPEND TO WA MESSAGE ---
-                        waText += `🔹 ${h.timestamp} ${h.stage}\n`;
+                        waText += `🕒 ${h.timestamp} ${h.stage}\n`;
                         waText += `   Oleh: ${h.actor}\n`;
                         waText += `   Isi: "${h.desc}"\n`;
                         if(h.action && h.action !== 'Selesai') waText += `   (${h.action})\n`;
@@ -1436,6 +1539,7 @@
                 if(r.status==='success') { 
                     Swal.fire('Sukses', 'Tujuan dan isi disposisi diperbarui', 'success'); 
                     loadArsipMasuk(); 
+                    updateSidebarBadges(); // Refresh count
                 } else Swal.fire('Gagal', r.message, 'error');
             });
         }
@@ -1500,7 +1604,7 @@
             showLoading(true); 
             fetch(GAS_URL, { method: 'POST', body: JSON.stringify(p) }).then(r => r.json()).then(r => { 
                 showLoading(false); 
-                if (r.status === 'success') { Swal.fire('OK', 'Terkirim', 'success'); refreshCurrentDisposisi(); } 
+                if (r.status === 'success') { Swal.fire('OK', 'Terkirim', 'success'); refreshCurrentDisposisi(); updateSidebarBadges(); } 
                 else Swal.fire('Err', r.message, 'error'); 
             }); 
         }
