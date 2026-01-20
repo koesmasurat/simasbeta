@@ -190,6 +190,8 @@
                     <button class="nav-link w-100 text-start" id="btn-home" onclick="activateTab('home-content', this); updateSidebarBadges();"><i class="fas fa-home"></i> Beranda</button>
                     <!-- PROFIL SAYA -->
                     <button class="nav-link w-100 text-start" onclick="openMyProfile()"><i class="fas fa-user-circle"></i> Profil Saya</button>
+                    <!-- NEW: SETTING TUJUAN (BAWAHAN) -->
+                    <button class="nav-link w-100 text-start text-warning" onclick="openSettingTujuan()"><i class="fas fa-user-friends"></i> Setting Tujuan</button>
                     
                     <div class="my-2 border-top border-white-50"></div>
                     <!-- PENCARIAN LANJUT DENGAN PERMISSION -->
@@ -521,6 +523,32 @@
                         <h5 class="fw-bold mb-3">Daftar Pengguna</h5>
                         <div class="table-responsive"><table id="tableUsers" class="table table-striped w-100 align-middle"><thead class="table-dark"><tr><th>Email</th><th>Nama</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead><tbody></tbody></table></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SETTING TUJUAN (NEW) -->
+    <div class="modal fade" id="modalSettingTujuan" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="fas fa-user-friends me-2"></i>Setting Tujuan Disposisi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" id="searchSettingTujuan" class="form-control" placeholder="Cari nama bawahan/tujuan..." onkeyup="filterSettingTujuan()">
+                    </div>
+                    <div class="alert alert-info small">
+                        Pilih nama-nama user yang akan muncul di daftar disposisi Anda.
+                    </div>
+                    <div id="listSettingTujuan" class="border rounded p-2 bg-light" style="max-height: 300px; overflow-y: auto;">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Memuat User...</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary w-100 fw-bold" onclick="saveSettingTujuan()">Simpan</button>
                 </div>
             </div>
         </div>
@@ -1402,10 +1430,10 @@
                     // --- BUILD WHATSAPP MESSAGE START ---
                     let waText = `*DETAIL SURAT MASUK*\n`;
                     waText += `--------------------\n`;
-                    waText += `📂 Link File: ${fileUrl ? fileUrl : '(Tidak ada file)'}\n`;
-                    waText += `📝 Perihal: ${r.data.perihal}\n`;
-                    waText += `📅 Tgl Surat: ${r.data.tglSurat}\n`;
-                    waText += `📥 Tgl Terima: ${tglTerima || '-'}\n\n`;
+                    waText += `唐 Link File: ${fileUrl ? fileUrl : '(Tidak ada file)'}\n`;
+                    waText += `統 Perihal: ${r.data.perihal}\n`;
+                    waText += `套 Tgl Surat: ${r.data.tglSurat}\n`;
+                    waText += `踏 Tgl Terima: ${tglTerima || '-'}\n\n`;
                     waText += `*RIWAYAT DISPOSISI:*\n`;
                     // -----------------------------------
 
@@ -1413,7 +1441,7 @@
                         html += `<div class="timeline-item ${h.status}"><div class="timeline-date">${h.timestamp}</div><div class="timeline-content"><div class="timeline-title">${h.stage}</div><div class="timeline-actor">${h.actor}</div><div class="small text-muted mb-1">${h.action}</div><div class="small fst-italic border-top pt-1 mt-1 text-secondary">${h.desc}</div></div></div>`;
                         
                         // --- APPEND TO WA MESSAGE ---
-                        waText += `🕒 ${h.timestamp} ${h.stage}\n`;
+                        waText += `葡 ${h.timestamp} ${h.stage}\n`;
                         waText += `   Oleh: ${h.actor}\n`;
                         waText += `   Isi: "${h.desc}"\n`;
                         if(h.action && h.action !== 'Selesai') waText += `   (${h.action})\n`;
@@ -1577,7 +1605,7 @@
             
             // Staf Logic (Self or Delegated)
             if (t.length === 0 && subs.length > 0) t = subs; 
-            if (t.length === 0) { container.html('<span class="text-muted small">Tidak ada tujuan tersedia. Hubungi Admin.</span>'); } 
+            if (t.length === 0) { container.html('<span class="text-muted small">Tidak ada tujuan tersedia. Hubungi Admin atau Setting Tujuan Disposisi.</span>'); } 
             else { t.forEach(x => { container.append(`<div class="form-check"><input class="form-check-input target-check" type="checkbox" value="${x}" id="chk_${x.replace(/\s/g,'')}"><label class="form-check-label small" for="chk_${x.replace(/\s/g,'')}">${x}</label></div>`); }); } 
             new bootstrap.Modal(document.getElementById('modalDisposisi')).show(); 
         }
@@ -1748,6 +1776,105 @@
             fetch(GAS_URL,{method:'POST',body:JSON.stringify(d)}).then(r=>r.json()).then(r=>{showLoading(false);if(r.status==='success'){Swal.fire('OK','Tersimpan','success');loadUsers()}else Swal.fire('Err',r.message,'error')});
         }
         
+        // --- NEW FUNCTIONS FOR SETTING TUJUAN DISPOSISI MANDIRI ---
+        function openSettingTujuan() {
+            const listDiv = $('#listSettingTujuan');
+            listDiv.html('<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Memuat User...</div>');
+            new bootstrap.Modal(document.getElementById('modalSettingTujuan')).show();
+            $('#searchSettingTujuan').val('');
+
+            // Load all users list if not loaded, or use cache
+            if(allUsersList.length > 0) {
+                renderSettingTujuanList();
+            } else {
+                fetch(`${GAS_URL}?type=get_users_list`, {method:'POST', body:JSON.stringify({type:'get_users_list', requestor:currentUserEmail})})
+                .then(r=>r.json())
+                .then(r=>{
+                    if(r.status==='success') {
+                        allUsersList = r.data || [];
+                        renderSettingTujuanList();
+                    } else {
+                        listDiv.html('<span class="text-danger">Gagal memuat daftar user.</span>');
+                    }
+                })
+                .catch(e => {
+                    listDiv.html('<span class="text-danger">Error koneksi.</span>');
+                });
+            }
+        }
+
+        function renderSettingTujuanList() {
+            const listDiv = $('#listSettingTujuan');
+            listDiv.empty();
+            
+            // Get Current Subordinates from Session/Global
+            // Note: currentContextSubordinates stores NAMES currently.
+            const mySubs = currentContextSubordinates || [];
+
+            allUsersList.forEach(user => {
+                // Don't list self
+                if(user.email !== currentUserEmail) {
+                    const isChecked = mySubs.includes(user.name) ? 'checked' : '';
+                    // Generate ID
+                    const id = `chk_st_${user.email.replace(/[^a-zA-Z0-9]/g, '')}`;
+                    
+                    const html = `
+                    <div class="user-list-item setting-tujuan-item">
+                        <input class="form-check-input me-2 st-check" type="checkbox" value="${user.name}" ${isChecked} id="${id}">
+                        <label class="form-check-label w-100 cursor-pointer" for="${id}">
+                            <div class="fw-bold small">${user.name}</div>
+                            <div class="text-muted" style="font-size:0.75rem">${user.bidang || user.role}</div>
+                        </label>
+                    </div>`;
+                    listDiv.append(html);
+                }
+            });
+        }
+
+        function filterSettingTujuan() {
+            const term = $('#searchSettingTujuan').val().toLowerCase();
+            $('#listSettingTujuan .setting-tujuan-item').each(function() {
+                const text = $(this).text().toLowerCase();
+                $(this).toggle(text.includes(term));
+            });
+        }
+
+        function saveSettingTujuan() {
+            const selected = [];
+            $('.st-check:checked').each(function() {
+                selected.push($(this).val());
+            });
+
+            const d = {
+                type: 'update_my_subordinates',
+                email: currentUserEmail,
+                subordinates: JSON.stringify(selected)
+            };
+
+            bootstrap.Modal.getInstance(document.getElementById('modalSettingTujuan')).hide();
+            showLoading(true);
+
+            fetch(GAS_URL, {method:'POST', body:JSON.stringify(d)})
+            .then(r=>r.json())
+            .then(r => {
+                showLoading(false);
+                if(r.status === 'success') {
+                    // CRITICAL: Update Session Storage & Global Variable Immediately
+                    sessionStorage.setItem('userSubordinates', JSON.stringify(selected));
+                    currentContextSubordinates = selected;
+                    
+                    Swal.fire('Sukses', 'Daftar tujuan disposisi berhasil diperbarui.', 'success');
+                } else {
+                    Swal.fire('Gagal', r.message, 'error');
+                }
+            })
+            .catch(e => {
+                showLoading(false);
+                Swal.fire('Error', 'Terjadi kesalahan jaringan.', 'error');
+            });
+        }
+        // ------------------------------------------------------------
+
         function loadStorageStats(){showLoading(true);fetch(`${GAS_URL}?action=get_storage_stats&requestor=${currentUserEmail}`).then(r=>r.json()).then(r=>{showLoading(false);if(r.status==='success'){const d=r.data;$('#disp-quota-A').text(d.nodeA.percentage+'%');$('#prog-A').css('width',d.nodeA.percentage+'%');$('#disp-quota-B').text(d.nodeB.percentage+'%');$('#prog-B').css('width',d.nodeB.percentage+'%');$('#disp-quota-C').text(d.nodeC.percentage+'%');$('#prog-C').css('width',d.nodeC.percentage+'%');$('#switchFailover').prop('checked',d.settings.failover);$('#selectActiveNode').val(d.settings.activeNode)}else Swal.fire('Akses Ditolak','Hanya Admin','warning')})}
         function saveStorageSettings(){const f=$('#switchFailover').is(':checked');const a=$('#selectActiveNode').val();showLoading(true);fetch(GAS_URL,{method:'POST',body:JSON.stringify({type:'update_storage_settings',failover:f,activeNode:a,requestor:currentUserEmail})}).then(r=>r.json()).then(r=>{showLoading(false);if(r.status==='success')Swal.fire('OK','Disimpan','success');else Swal.fire('Err',r.message,'error')})}
         function openSettingsPage(e){activateTab('settings-content',e,()=>{loadUsers();if(sessionStorage.getItem('userRole')!=='User')loadStorageStats()})}
