@@ -73,6 +73,27 @@
         .timeline-item { position: relative; margin-bottom: 20px; }
         .timeline-item::before { content: ''; position: absolute; left: -26px; top: 0; width: 15px; height: 15px; background: #3b82f6; border-radius: 50%; }
         .timeline-date { font-size: 0.8rem; color: #6c757d; }
+
+        /* --- FIXED ADMIN TABLE STYLES --- */
+        #tableAdmin { table-layout: fixed; width: 100%; font-size: 0.9rem; }
+        #tableAdmin th, #tableAdmin td { vertical-align: middle; white-space: normal; word-wrap: break-word; }
+        
+        /* Kolom Jabatan */
+        #tableAdmin th:nth-child(1) { width: 35%; } 
+        /* Kolom Level */
+        #tableAdmin th:nth-child(2) { width: 10%; text-align: center; } 
+        #tableAdmin td:nth-child(2) { text-align: center; font-weight: bold; }
+        /* Kolom Pejabat */
+        #tableAdmin th:nth-child(3) { width: 30%; }
+        /* Kolom Lock */
+        #tableAdmin th:nth-child(4) { width: 10%; text-align: center; }
+        #tableAdmin td:nth-child(4) { text-align: center; }
+        /* Kolom Aksi */
+        #tableAdmin th:nth-child(5) { width: 15%; text-align: center; }
+        #tableAdmin td:nth-child(5) { text-align: center; }
+        
+        /* Action Buttons Grid */
+        .action-group { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -229,18 +250,20 @@
                     </div>
                     <button class="btn btn-primary btn-sm mb-3" onclick="loadAdminData()"><i class="fas fa-sync"></i> Refresh</button>
                     
-                    <table class="table table-bordered table-striped" id="tableAdmin">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Jabatan (ID/Nama)</th>
-                                <th>Level</th>
-                                <th>Pejabat (User Email)</th>
-                                <th>Lock</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped" id="tableAdmin">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Jabatan (ID/Nama)</th>
+                                    <th>Level</th>
+                                    <th>Pejabat (User Email)</th>
+                                    <th>Lock</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -310,6 +333,7 @@
         let activeJob = null;
         let currentTableMode = '';
         let allPositions = [];
+        let adminDataList = []; // Global store for admin data
 
         $(document).ready(function() {
             tsParticles.load("tsparticles", {
@@ -496,20 +520,21 @@
             .then(r=>{ 
                 showLoading(false); 
                 const t=$('#tableAdmin tbody'); t.empty(); 
-                r.data.forEach(u=>{ 
+                adminDataList = r.data; // Simpan ke global
+                r.data.forEach((u, index) => { 
                     const lockBtn = u.is_locked ? 
                         `<button class="btn btn-danger btn-sm" onclick="toggleLock('${u.pejabat_email}',false)"><i class="fas fa-lock"></i></button>` : 
                         `<button class="btn btn-success btn-sm" onclick="toggleLock('${u.pejabat_email}',true)"><i class="fas fa-lock-open"></i></button>`;
                     
-                    // Tombol Edit yang memanggil modal baru
-                    const editBtn = `<button class="btn btn-warning btn-sm ms-1" onclick='openAdminEdit(${JSON.stringify(u)})'><i class="fas fa-edit"></i></button>`;
+                    // Gunakan index array untuk akses data, lebih aman
+                    const editBtn = `<button class="btn btn-warning btn-sm" onclick='openAdminEditIndex(${index})'><i class="fas fa-edit"></i></button>`;
                     
                     t.append(`<tr>
-                        <td><strong>${u.id}</strong><br>${u.nama_jabatan}</td>
+                        <td><div style="white-space:normal;"><strong>${u.id}</strong><br>${u.nama_jabatan}</div></td>
                         <td>${u.level}</td>
-                        <td>${u.pejabat_email || '<span class="text-muted fst-italic">Kosong</span>'}</td>
+                        <td><div style="white-space:normal; word-break:break-word;">${u.pejabat_email || '<span class="text-muted fst-italic">Kosong</span>'}</div></td>
                         <td>${lockBtn}</td>
-                        <td>${editBtn}</td>
+                        <td><div class="action-group">${editBtn}</div></td>
                     </tr>`); 
                 }); 
             }); 
@@ -520,6 +545,11 @@
             showLoading(true); 
             fetch(GAS_URL, {method:'POST', body:JSON.stringify({type:'admin_toggle_lock', requestor:currentUser.email, targetEmail:email, newStatus:status})})
             .then(r=>r.json()).then(r=>loadAdminData()); 
+        }
+
+        function openAdminEditIndex(index) {
+            const data = adminDataList[index];
+            openAdminEdit(data);
         }
 
         // Open Modal Add/Edit
