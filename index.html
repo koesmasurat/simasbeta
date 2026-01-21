@@ -223,10 +223,22 @@
             <!-- Admin -->
             <div id="page-admin" class="page-section">
                 <div class="white-panel p-4">
-                    <h3 class="fw-bold text-danger">Mapping User</h3>
-                    <button class="btn btn-primary mb-3" onclick="loadAdminData()">Refresh</button>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="fw-bold text-danger">Manajemen Struktur & User</h3>
+                        <button class="btn btn-success btn-sm" onclick="openAdminEdit(null)"><i class="fas fa-plus-circle"></i> Tambah Jabatan</button>
+                    </div>
+                    <button class="btn btn-primary btn-sm mb-3" onclick="loadAdminData()"><i class="fas fa-sync"></i> Refresh</button>
+                    
                     <table class="table table-bordered table-striped" id="tableAdmin">
-                        <thead class="table-dark"><tr><th>User</th><th>Jabatan</th><th>Lock</th><th>Aksi</th></tr></thead>
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Jabatan (ID/Nama)</th>
+                                <th>Level</th>
+                                <th>Pejabat (User Email)</th>
+                                <th>Lock</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -247,13 +259,46 @@
     <!-- Role Switcher -->
     <div class="modal fade" id="modalRoleSwitch" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Pilih Posisi</h5></div><div class="modal-body p-0"><div class="list-group list-group-flush" id="roleListContainer"></div></div></div></div></div>
 
-    <!-- History Modal (New Feature) -->
-    <div class="modal fade" id="modalHistory" tabindex="-1">
+    <!-- History Modal -->
+    <div class="modal fade" id="modalHistory" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-info text-white"><h5 class="modal-title">History Surat</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="historyTimeline" class="timeline"></div></div></div></div></div>
+
+    <!-- Admin Edit Modal (NEW) -->
+    <div class="modal fade" id="modalAdminEdit" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header bg-info text-white"><h5 class="modal-title">History Surat</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Edit Struktur / User</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
-                    <div id="historyTimeline" class="timeline"></div>
+                    <ul class="nav nav-tabs mb-3" id="adminTabs">
+                        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabStruct">Detail Jabatan</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabUser">User Assigned</a></li>
+                    </ul>
+                    <div class="tab-content">
+                        <!-- Structure Form -->
+                        <div class="tab-pane fade show active" id="tabStruct">
+                            <form id="formAdminStruct">
+                                <div class="mb-2"><label>ID Jabatan (Kode Unik)</label><input id="adm_id" class="form-control" required></div>
+                                <div class="mb-2"><label>Nama Jabatan</label><input id="adm_nama" class="form-control" required></div>
+                                <div class="mb-2"><label>Parent ID (Atasan)</label><input id="adm_parent" class="form-control" placeholder="Kosongkan jika Direktur"></div>
+                                <div class="mb-2"><label>Level (1-5)</label><input type="number" id="adm_level" class="form-control" required></div>
+                                <button type="submit" class="btn btn-danger w-100 mt-3">Simpan Struktur</button>
+                            </form>
+                        </div>
+                        <!-- User Assignment Form -->
+                        <div class="tab-pane fade" id="tabUser">
+                            <form id="formAdminUser">
+                                <input type="hidden" id="adm_assign_id"> <!-- ID Jabatan -->
+                                <div class="mb-3">
+                                    <label>Email Pejabat Saat Ini</label>
+                                    <input type="email" id="adm_email" class="form-control" placeholder="user@gmail.com">
+                                    <small class="text-muted">Ganti email ini untuk memindahkan jabatan ke orang lain secara paksa.</small>
+                                </div>
+                                <button type="submit" class="btn btn-warning w-100">Update Pejabat</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -434,17 +479,124 @@
 
         function printDisp(agenda) { window.open(`${GAS_URL}?action=print_disposisi&agenda=${agenda}`, '_blank'); }
 
-        // EXPORT EXCEL (New Feature)
+        // EXPORT EXCEL
         function exportToExcel() {
             const table = document.getElementById('mainTable');
             const wb = XLSX.utils.table_to_book(table, {sheet: "Data"});
             XLSX.writeFile(wb, `Export_${currentTableMode}_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
 
-        // ADMIN
+        // --- ADMIN FUNCTIONS ---
         function openAdminMapping(el) { nav('admin', el); loadAdminData(); }
-        function loadAdminData() { showLoading(true); fetch(GAS_URL, {method:'POST', body:JSON.stringify({type:'admin_get_mapping', requestor:currentUser.email})}).then(r=>r.json()).then(r=>{ showLoading(false); const t=$('#tableAdmin tbody'); t.empty(); r.data.forEach(u=>{ const b=u.isLocked?`<button class="btn btn-danger btn-sm" onclick="lock('${u.email}',false)">Unlock</button>`:`<button class="btn btn-success btn-sm" onclick="lock('${u.email}',true)">Lock</button>`; t.append(`<tr><td>${u.nama}<br>${u.email}</td><td>${u.jabatan}</td><td>${u.isLocked?'🔒':'🔓'}</td><td>${b}</td></tr>`); }); }); }
-        function lock(e,s) { showLoading(true); fetch(GAS_URL, {method:'POST', body:JSON.stringify({type:'admin_toggle_lock', requestor:currentUser.email, targetEmail:e, newStatus:s})}).then(r=>r.json()).then(r=>loadAdminData()); }
+        
+        function loadAdminData() { 
+            showLoading(true); 
+            fetch(GAS_URL, {method:'POST', body:JSON.stringify({type:'admin_get_mapping', requestor:currentUser.email})})
+            .then(r=>r.json())
+            .then(r=>{ 
+                showLoading(false); 
+                const t=$('#tableAdmin tbody'); t.empty(); 
+                r.data.forEach(u=>{ 
+                    const lockBtn = u.is_locked ? 
+                        `<button class="btn btn-danger btn-sm" onclick="toggleLock('${u.pejabat_email}',false)"><i class="fas fa-lock"></i></button>` : 
+                        `<button class="btn btn-success btn-sm" onclick="toggleLock('${u.pejabat_email}',true)"><i class="fas fa-lock-open"></i></button>`;
+                    
+                    // Tombol Edit yang memanggil modal baru
+                    const editBtn = `<button class="btn btn-warning btn-sm ms-1" onclick='openAdminEdit(${JSON.stringify(u)})'><i class="fas fa-edit"></i></button>`;
+                    
+                    t.append(`<tr>
+                        <td><strong>${u.id}</strong><br>${u.nama_jabatan}</td>
+                        <td>${u.level}</td>
+                        <td>${u.pejabat_email || '<span class="text-muted fst-italic">Kosong</span>'}</td>
+                        <td>${lockBtn}</td>
+                        <td>${editBtn}</td>
+                    </tr>`); 
+                }); 
+            }); 
+        }
+
+        function toggleLock(email, status) { 
+            if(!email) return Swal.fire("Error", "Belum ada user di jabatan ini", "warning");
+            showLoading(true); 
+            fetch(GAS_URL, {method:'POST', body:JSON.stringify({type:'admin_toggle_lock', requestor:currentUser.email, targetEmail:email, newStatus:status})})
+            .then(r=>r.json()).then(r=>loadAdminData()); 
+        }
+
+        // Open Modal Add/Edit
+        function openAdminEdit(data) {
+            const modal = new bootstrap.Modal(document.getElementById('modalAdminEdit'));
+            
+            if (data) {
+                // EDIT MODE
+                $('#adm_id').val(data.id).prop('readonly', true); // ID cannot change
+                $('#adm_nama').val(data.nama_jabatan);
+                $('#adm_parent').val(data.parent);
+                $('#adm_level').val(data.level);
+                
+                // User Tab Pre-fill
+                $('#adm_assign_id').val(data.id);
+                $('#adm_email').val(data.pejabat_email);
+                
+                // Show Struct Tab first
+                new bootstrap.Tab(document.querySelector('#adminTabs a[href="#tabStruct"]')).show();
+            } else {
+                // ADD NEW MODE
+                $('#formAdminStruct')[0].reset();
+                $('#adm_id').prop('readonly', false);
+                $('#adm_level').val(4); // Default
+                new bootstrap.Tab(document.querySelector('#adminTabs a[href="#tabStruct"]')).show();
+            }
+            
+            modal.show();
+        }
+
+        // Handle Form Submit: Structure
+        $('#formAdminStruct').on('submit', function(e) {
+            e.preventDefault();
+            const payload = {
+                type: 'admin_save_structure',
+                requestor: currentUser.email,
+                id: $('#adm_id').val(),
+                nama: $('#adm_nama').val(),
+                parent: $('#adm_parent').val(),
+                level: $('#adm_level').val()
+            };
+            
+            showLoading(true);
+            fetch(GAS_URL, {method:'POST', body:JSON.stringify(payload)})
+            .then(r=>r.json())
+            .then(r=>{
+                showLoading(false);
+                if(r.status==='success') {
+                    bootstrap.Modal.getInstance(document.getElementById('modalAdminEdit')).hide();
+                    Swal.fire("Sukses", "Struktur berhasil disimpan", "success");
+                    loadAdminData();
+                } else Swal.fire("Gagal", r.message, "error");
+            });
+        });
+
+        // Handle Form Submit: User Assignment
+        $('#formAdminUser').on('submit', function(e) {
+            e.preventDefault();
+            const payload = {
+                type: 'admin_assign_user',
+                requestor: currentUser.email,
+                jabatanId: $('#adm_assign_id').val(),
+                emailPejabat: $('#adm_email').val()
+            };
+            
+            showLoading(true);
+            fetch(GAS_URL, {method:'POST', body:JSON.stringify(payload)})
+            .then(r=>r.json())
+            .then(r=>{
+                showLoading(false);
+                if(r.status==='success') {
+                    bootstrap.Modal.getInstance(document.getElementById('modalAdminEdit')).hide();
+                    Swal.fire("Sukses", "Pejabat berhasil diupdate", "success");
+                    loadAdminData();
+                } else Swal.fire("Gagal", r.message, "error");
+            });
+        });
     </script>
 </body>
 </html>
