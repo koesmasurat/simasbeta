@@ -2373,9 +2373,12 @@
         
         const apiKey = "AIzaSyALI61gxihwzVUbBkZvHuZYCiiPR_jlY2M"; // API Key provided by environment
 
-        async function callGeminiAPI(promptText, inlineData = null) {
+        // MODIFIED: Added silentMode parameter to handle errors manually in caller
+        async function callGeminiAPI(promptText, inlineData = null, silentMode = false) {
             if (!apiKey) {
-                Swal.fire('Konfigurasi', 'API Key Gemini belum disetting di environment.', 'warning');
+                const msg = 'API Key Gemini belum disetting di environment.';
+                if(silentMode) throw new Error(msg);
+                Swal.fire('Konfigurasi', msg, 'warning');
                 return null;
             }
 
@@ -2383,7 +2386,6 @@
             
             const requestContent = { role: "user", parts: [{ text: promptText }] };
             if (inlineData) {
-                // Hapus prefix data:image/...;base64,
                 const base64Clean = inlineData.split(',')[1];
                 requestContent.parts.push({
                     inlineData: {
@@ -2393,12 +2395,10 @@
                 });
             }
 
-            const payload = {
-                contents: [requestContent]
-            };
+            const payload = { contents: [requestContent] };
 
             try {
-                // Retry logic implementation (Exponential Backoff)
+                // Retry logic implementation
                 const fetchWithRetry = async (retries = 3, delay = 1000) => {
                     try {
                         const response = await fetch(url, {
@@ -2407,10 +2407,25 @@
                             body: JSON.stringify(payload)
                         });
                         
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        return await response.json();
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            // Extract detailed error message from Google API
+                            const errMsg = data.error?.message || `HTTP Error ${response.status}`;
+                            throw new Error(errMsg);
+                        }
+                        
+                        // Check for safety filters (Block)
+                        const candidate = data.candidates?.[0];
+                        if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+                            throw new Error(`AI menghentikan proses. Alasan: ${candidate.finishReason} (Safety/Filter).`);
+                        }
+
+                        return candidate?.content?.parts?.[0]?.text || null;
+
                     } catch (err) {
-                        if (retries > 0) {
+                        if (retries > 0 && !err.message.includes("Safety")) {
+                            // Don't retry if it's a Safety block
                             await new Promise(res => setTimeout(res, delay));
                             return fetchWithRetry(retries - 1, delay * 2);
                         } else {
@@ -2419,11 +2434,13 @@
                     }
                 };
 
-                const data = await fetchWithRetry();
-                return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+                return await fetchWithRetry();
 
             } catch (error) {
                 console.error("Gemini AI Error:", error);
+                if (silentMode) {
+                    throw error; // Re-throw to caller for specific handling
+                }
                 Swal.fire('AI Error', 'Gagal menghubungi asisten pintar. Coba lagi nanti.', 'error');
                 return null;
             }
@@ -2441,7 +2458,6 @@
 
             const userRole = sessionStorage.getItem('userRole') || 'Pejabat';
             
-            // Prompt Engineering for Indonesian Bureaucracy
             const prompt = `Bertindaklah sebagai asisten administrasi rumah sakit yang profesional. 
             Saya adalah ${userRole}. Ada surat masuk dengan perihal: "${perihal}".
             Buatkan kalimat instruksi disposisi yang singkat, tegas, dan dapat ditindaklanjuti untuk bawahan.
@@ -2488,6 +2504,7 @@
         }
 
         // Feature 3: Auto-Fill from PDF/Image File (Surat Masuk)
+        // MODIFIED: Enhanced Error Handling
         async function autoFillSuratMasuk() {
             const fileInput = document.getElementById('fileSuratMasuk');
             const file = fileInput.files[0];
@@ -2498,7 +2515,7 @@
 
             const btn = event.currentTarget;
             const originalContent = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membaca File...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analisa File...';
             btn.disabled = true;
 
             try {
@@ -2506,10 +2523,9 @@
 
                 // 1. Convert File to Base64 Image
                 if (file.type === 'application/pdf') {
-                    // Convert First Page of PDF to Image
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-                    const page = await pdf.getPage(1); // Get first page only
+                    const page = await pdf.getPage(1);
                     
                     const scale = 1.5;
                     const viewport = page.getViewport({ scale: scale });
@@ -2519,15 +2535,14 @@
                     canvas.width = viewport.width;
 
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
-                    imageBase64 = canvas.toDataURL('image/jpeg', 0.8); // Convert to JPEG
+                    imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
                 } else if (file.type.match(/image.*/)) {
-                    // It's already an image, compress/resize if needed using existing logic
                     imageBase64 = await readFile(file);
                 } else {
-                    throw new Error("Format file tidak didukung. Gunakan PDF atau Gambar.");
+                    throw new Error("Format file tidak didukung. Gunakan PDF atau Gambar (JPG/PNG).");
                 }
 
-                // 2. Call Gemini Vision
+                // 2. Call Gemini Vision with Silent Mode enabled (handle error here)
                 const prompt = `Analisa gambar surat dinas ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format JSON valid:
                 {
                     "no_surat": "nomor surat",
@@ -2537,27 +2552,68 @@
                 }
                 Jika tanggal tidak ditemukan, kembalikan null. Pastikan format tanggal YYYY-MM-DD. Jangan ada teks lain selain JSON.`;
 
-                const result = await callGeminiAPI(prompt, imageBase64);
+                const result = await callGeminiAPI(prompt, imageBase64, true);
 
-                // 3. Parse Result & Fill Form
-                if (result) {
-                    // Clean code blocks if any (```json ... ```)
+                if (!result) throw new Error("AI tidak memberikan respon teks (Empty Response).");
+
+                // 3. Parse Result
+                let data;
+                try {
                     const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const data = JSON.parse(cleanJson);
+                    data = JSON.parse(cleanJson);
+                } catch (e) {
+                    throw new Error("Gagal parsing JSON. AI merespon dengan format yang salah (Mungkin gambar buram).");
+                }
 
+                // 4. Validate Data Content
+                const filledCount = [data.no_surat, data.tgl_surat, data.pengirim, data.perihal].filter(Boolean).length;
+                
+                if (filledCount === 0) {
+                    Swal.fire('Info', 'AI dapat membaca gambar, namun tidak menemukan teks yang relevan (No/Tgl/Pengirim/Perihal). Pastikan Kop Surat terlihat jelas.', 'warning');
+                } else {
                     if (data.no_surat) $('#sm_noSurat').val(data.no_surat);
                     if (data.tgl_surat) $('#sm_tglSurat').val(data.tgl_surat);
                     if (data.pengirim) $('#sm_pengirim').val(data.pengirim);
                     if (data.perihal) $('#sm_perihal').val(data.perihal);
-
-                    Swal.fire('Sukses', 'Data berhasil diekstrak dari file!', 'success');
-                } else {
-                    Swal.fire('Gagal', 'AI tidak dapat membaca surat tersebut.', 'warning');
+                    
+                    const missed = 4 - filledCount;
+                    if(missed === 0) {
+                        Swal.fire('Sukses', 'Data berhasil diekstrak lengkap!', 'success');
+                    } else {
+                        Swal.fire('Sukses', `Data diekstrak (${filledCount}/4). Silakan lengkapi manual data yang kurang.`, 'info');
+                    }
                 }
 
             } catch (error) {
-                console.error(error);
-                Swal.fire('Error', 'Terjadi kesalahan saat memproses file: ' + error.message, 'error');
+                console.error("AutoFill Error:", error);
+                
+                // MAPPING ERROR MESSAGE KE INDONESIA
+                let userMsg = "Terjadi kesalahan sistem.";
+                const errStr = error.message || error.toString();
+
+                if (errStr.includes("Safety") || errStr.includes("SAFETY")) {
+                    userMsg = "<b>Blokir Keamanan AI:</b><br>Gambar dianggap mengandung konten sensitif atau tidak aman oleh filter Google.";
+                } else if (errStr.includes("400")) {
+                    userMsg = "<b>Bad Request (400):</b><br>Kualitas gambar mungkin terlalu rendah, file rusak, atau format tidak dikenali.";
+                } else if (errStr.includes("429")) {
+                    userMsg = "<b>Kuota Penuh (429):</b><br>Terlalu banyak permintaan ke AI. Mohon tunggu 1 menit lalu coba lagi.";
+                } else if (errStr.includes("500") || errStr.includes("503")) {
+                    userMsg = "<b>Gangguan Server (500):</b><br>Server Google AI sedang sibuk atau mengalami gangguan. Coba lagi nanti.";
+                } else if (errStr.includes("JSON")) {
+                    userMsg = "<b>Gagal Membaca Data:</b><br>AI merespon, tapi format datanya acak. Kemungkinan tulisan tangan terlalu sulit dibaca atau gambar buram.";
+                } else if (errStr.includes("Format file")) {
+                    userMsg = "<b>Format Salah:</b><br>Hanya file PDF dan Gambar (JPG/PNG) yang didukung.";
+                } else {
+                    userMsg = `<b>Gagal Membaca File:</b><br>${errStr}`;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal Analisa',
+                    html: userMsg,
+                    confirmButtonText: 'Tutup'
+                });
+
             } finally {
                 btn.innerHTML = originalContent;
                 btn.disabled = false;
