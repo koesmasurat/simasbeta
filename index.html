@@ -2368,80 +2368,47 @@
         function setDefaultDatesMasuk() { const today = new Date().toISOString().split('T')[0]; if(!$('input[name="tglSurat"]').val()) $('input[name="tglSurat"]').val(today); if(!$('input[name="tglTerima"]').val()) $('input[name="tglTerima"]').val(today); }
     
         // ==========================================
-        // GEMINI AI INTEGRATION (CLIENT SIDE)
+        // GEMINI AI INTEGRATION (SECURE - VIA BACKEND)
         // ==========================================
         
-        const apiKey = "AIzaSyALI61gxihwzVUbBkZvHuZYCiiPR_jlY2M"; // API Key provided by environment
+        // MODIFIED: No Hardcoded API Key here anymore!
+        // The API Key is safely stored in 28simas.gs
 
-        // MODIFIED: Added silentMode parameter to handle errors manually in caller
         async function callGeminiAPI(promptText, inlineData = null, silentMode = false) {
-            if (!apiKey) {
-                const msg = 'API Key Gemini belum disetting di environment.';
-                if(silentMode) throw new Error(msg);
-                Swal.fire('Konfigurasi', msg, 'warning');
-                return null;
-            }
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             
-            const requestContent = { role: "user", parts: [{ text: promptText }] };
-            if (inlineData) {
-                const base64Clean = inlineData.split(',')[1];
-                requestContent.parts.push({
-                    inlineData: {
-                        mimeType: "image/jpeg",
-                        data: base64Clean
-                    }
-                });
-            }
-
-            const payload = { contents: [requestContent] };
+            // Construct Payload for Backend
+            const payload = {
+                type: 'ai_task',
+                prompt: promptText,
+                image: inlineData // Full DataURL (data:image/...) sent to backend
+            };
 
             try {
-                // Retry logic implementation
-                const fetchWithRetry = async (retries = 3, delay = 1000) => {
-                    try {
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        
-                        const data = await response.json();
+                // Call Google Apps Script Backend
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    // Default CORS behavior for GAS Web App usually handles text/plain or raw body best
+                    // But standard JSON stringify is what we handle in doPost
+                    body: JSON.stringify(payload)
+                });
 
-                        if (!response.ok) {
-                            // Extract detailed error message from Google API
-                            const errMsg = data.error?.message || `HTTP Error ${response.status}`;
-                            throw new Error(errMsg);
-                        }
-                        
-                        // Check for safety filters (Block)
-                        const candidate = data.candidates?.[0];
-                        if (candidate?.finishReason && candidate.finishReason !== "STOP") {
-                            throw new Error(`AI menghentikan proses. Alasan: ${candidate.finishReason} (Safety/Filter).`);
-                        }
+                const r = await response.json();
 
-                        return candidate?.content?.parts?.[0]?.text || null;
-
-                    } catch (err) {
-                        if (retries > 0 && !err.message.includes("Safety")) {
-                            // Don't retry if it's a Safety block
-                            await new Promise(res => setTimeout(res, delay));
-                            return fetchWithRetry(retries - 1, delay * 2);
-                        } else {
-                            throw err;
-                        }
-                    }
-                };
-
-                return await fetchWithRetry();
+                if (r.status === 'success') {
+                    return r.data.text; // Return the text from AI
+                } else {
+                    // Backend returned an error
+                    throw new Error(r.message || "Unknown AI Error from Server");
+                }
 
             } catch (error) {
-                console.error("Gemini AI Error:", error);
+                console.error("Gemini AI Error (Backend):", error);
+                
                 if (silentMode) {
                     throw error; // Re-throw to caller for specific handling
                 }
-                Swal.fire('AI Error', 'Gagal menghubungi asisten pintar. Coba lagi nanti.', 'error');
+                
+                Swal.fire('AI Error', 'Gagal memproses permintaan AI via Server. Coba lagi nanti.', 'error');
                 return null;
             }
         }
@@ -2504,7 +2471,6 @@
         }
 
         // Feature 3: Auto-Fill from PDF/Image File (Surat Masuk)
-        // MODIFIED: Enhanced Error Handling
         async function autoFillSuratMasuk() {
             const fileInput = document.getElementById('fileSuratMasuk');
             const file = fileInput.files[0];
@@ -2515,7 +2481,7 @@
 
             const btn = event.currentTarget;
             const originalContent = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analisa File...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analisa File (Server)...';
             btn.disabled = true;
 
             try {
@@ -2542,7 +2508,7 @@
                     throw new Error("Format file tidak didukung. Gunakan PDF atau Gambar (JPG/PNG).");
                 }
 
-                // 2. Call Gemini Vision with Silent Mode enabled (handle error here)
+                // 2. Call Gemini Vision via Backend (Secure)
                 const prompt = `Analisa gambar surat dinas ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format JSON valid:
                 {
                     "no_surat": "nomor surat",
@@ -2587,7 +2553,6 @@
             } catch (error) {
                 console.error("AutoFill Error:", error);
                 
-                // MAPPING ERROR MESSAGE KE INDONESIA
                 let userMsg = "Terjadi kesalahan sistem.";
                 const errStr = error.message || error.toString();
 
