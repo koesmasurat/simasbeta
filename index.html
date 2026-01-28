@@ -12,6 +12,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:ital@1&display=swap" rel="stylesheet">
     
+    <!-- PDF.js for AI Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -411,13 +415,19 @@
                         <form id="formSuratMasuk">
                             <div class="row g-3">
                                 <div class="col-md-4"><label class="form-label fw-bold">No. Agenda</label><input type="number" class="form-control" name="noAgenda" id="inNoAgenda" required><small class="text-white-50">Otomatis terisi</small></div>
-                                <div class="col-md-4"><label class="form-label fw-bold">Tgl Surat</label><input type="date" class="form-control" name="tglSurat" required></div>
+                                <div class="col-md-4"><label class="form-label fw-bold">Tgl Surat</label><input type="date" class="form-control" id="sm_tglSurat" name="tglSurat" required></div>
                                 <div class="col-md-4"><label class="form-label fw-bold">Tgl Terima</label><input type="date" class="form-control" name="tglTerima" required></div>
-                                <div class="col-md-6"><label class="form-label fw-bold">No. Surat</label><input type="text" class="form-control" name="noSurat" required></div>
-                                <div class="col-md-6"><label class="form-label fw-bold">Pengirim</label><input type="text" class="form-control" name="pengirim" required></div>
+                                <div class="col-md-6"><label class="form-label fw-bold">No. Surat</label><input type="text" class="form-control" id="sm_noSurat" name="noSurat" required></div>
+                                <div class="col-md-6"><label class="form-label fw-bold">Pengirim</label><input type="text" class="form-control" id="sm_pengirim" name="pengirim" required></div>
                                 <div class="col-12"><label class="form-label fw-bold">Kode Klarifikasi</label><input type="text" class="form-control" name="kodeKlarifikasi" list="listKodeKlarifikasi" placeholder="Ketik kode..."></div>
-                                <div class="col-12"><label class="form-label fw-bold">Perihal</label><textarea class="form-control" name="perihal" rows="3" required></textarea></div>
-                                <div class="col-12"><label class="form-label fw-bold">Upload File (PDF/IMG)</label><input type="file" class="form-control" id="fileSuratMasuk"></div>
+                                <div class="col-12"><label class="form-label fw-bold">Perihal</label><textarea class="form-control" id="sm_perihal" name="perihal" rows="3" required></textarea></div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Upload File (PDF/IMG)</label>
+                                    <input type="file" class="form-control mb-2" id="fileSuratMasuk">
+                                    <button type="button" class="btn btn-ai-sparkle w-100" onclick="autoFillSuratMasuk()">
+                                        <i class="fas fa-magic me-2"></i>✨ Baca File & Isi Otomatis
+                                    </button>
+                                </div>
                                 <div class="col-12 mt-4"><button type="submit" class="btn btn-primary w-100 py-2">Simpan</button></div>
                             </div>
                         </form>
@@ -2363,15 +2373,28 @@
         
         const apiKey = "AIzaSyALI61gxihwzVUbBkZvHuZYCiiPR_jlY2M"; // API Key provided by environment
 
-        async function callGeminiAPI(promptText) {
+        async function callGeminiAPI(promptText, inlineData = null) {
             if (!apiKey) {
                 Swal.fire('Konfigurasi', 'API Key Gemini belum disetting di environment.', 'warning');
                 return null;
             }
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const requestContent = { role: "user", parts: [{ text: promptText }] };
+            if (inlineData) {
+                // Hapus prefix data:image/...;base64,
+                const base64Clean = inlineData.split(',')[1];
+                requestContent.parts.push({
+                    inlineData: {
+                        mimeType: "image/jpeg",
+                        data: base64Clean
+                    }
+                });
+            }
+
             const payload = {
-                contents: [{ parts: [{ text: promptText }] }]
+                contents: [requestContent]
             };
 
             try {
@@ -2462,6 +2485,83 @@
 
             btn.innerHTML = originalContent;
             btn.disabled = false;
+        }
+
+        // Feature 3: Auto-Fill from PDF/Image File (Surat Masuk)
+        async function autoFillSuratMasuk() {
+            const fileInput = document.getElementById('fileSuratMasuk');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return Swal.fire('Info', 'Silakan pilih file surat (PDF atau Gambar) terlebih dahulu.', 'info');
+            }
+
+            const btn = event.currentTarget;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membaca File...';
+            btn.disabled = true;
+
+            try {
+                let imageBase64 = null;
+
+                // 1. Convert File to Base64 Image
+                if (file.type === 'application/pdf') {
+                    // Convert First Page of PDF to Image
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    const page = await pdf.getPage(1); // Get first page only
+                    
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale: scale });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    imageBase64 = canvas.toDataURL('image/jpeg', 0.8); // Convert to JPEG
+                } else if (file.type.match(/image.*/)) {
+                    // It's already an image, compress/resize if needed using existing logic
+                    imageBase64 = await readFile(file);
+                } else {
+                    throw new Error("Format file tidak didukung. Gunakan PDF atau Gambar.");
+                }
+
+                // 2. Call Gemini Vision
+                const prompt = `Analisa gambar surat dinas ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format JSON valid:
+                {
+                    "no_surat": "nomor surat",
+                    "tgl_surat": "YYYY-MM-DD", 
+                    "pengirim": "nama instansi/pengirim",
+                    "perihal": "perihal/hal surat"
+                }
+                Jika tanggal tidak ditemukan, kembalikan null. Pastikan format tanggal YYYY-MM-DD. Jangan ada teks lain selain JSON.`;
+
+                const result = await callGeminiAPI(prompt, imageBase64);
+
+                // 3. Parse Result & Fill Form
+                if (result) {
+                    // Clean code blocks if any (```json ... ```)
+                    const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const data = JSON.parse(cleanJson);
+
+                    if (data.no_surat) $('#sm_noSurat').val(data.no_surat);
+                    if (data.tgl_surat) $('#sm_tglSurat').val(data.tgl_surat);
+                    if (data.pengirim) $('#sm_pengirim').val(data.pengirim);
+                    if (data.perihal) $('#sm_perihal').val(data.perihal);
+
+                    Swal.fire('Sukses', 'Data berhasil diekstrak dari file!', 'success');
+                } else {
+                    Swal.fire('Gagal', 'AI tidak dapat membaca surat tersebut.', 'warning');
+                }
+
+            } catch (error) {
+                console.error(error);
+                Swal.fire('Error', 'Terjadi kesalahan saat memproses file: ' + error.message, 'error');
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
         }
     
     </script>
