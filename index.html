@@ -438,15 +438,20 @@
                         <h3 class="fw-bold mb-4 border-bottom pb-2 text-white">Catat Surat Keluar</h3>
                         <form id="formSuratKeluar">
                             <div class="row g-3">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label class="form-label fw-bold">No. Agenda</label>
                                     <div class="input-group">
                                         <input type="text" class="form-control" name="noAgenda" id="outNoAgenda" required>
                                         <button class="btn btn-warning fw-bold" type="button" onclick="openBookingModal('keluar')">Booking</button>
                                     </div>
                                 </div>
-                                <div class="col-md-6"><label class="form-label fw-bold">Tanggal</label><input type="date" class="form-control" name="tglSurat" required></div>
-                                <div class="col-12"><label class="form-label fw-bold">Tujuan</label><input type="text" class="form-control" name="tujuan" required></div>
+                                <!-- ADDED: No Surat Input -->
+                                <div class="col-md-4"><label class="form-label fw-bold">No. Surat</label><input type="text" class="form-control" name="noSurat" id="sk_noSurat"></div>
+                                <!-- ADDED: ID sk_tglSurat -->
+                                <div class="col-md-4"><label class="form-label fw-bold">Tanggal</label><input type="date" class="form-control" name="tglSurat" id="sk_tglSurat" required></div>
+                                
+                                <!-- ADDED: ID sk_tujuan -->
+                                <div class="col-12"><label class="form-label fw-bold">Tujuan</label><input type="text" class="form-control" name="tujuan" id="sk_tujuan" required></div>
                                 
                                 <!-- NEW: MULTI SELECT PEMBUAT -->
                                 <div class="col-12">
@@ -477,7 +482,14 @@
                                     </div>
                                     <textarea class="form-control" name="perihal" id="outPerihal" rows="3" required></textarea>
                                 </div>
-                                <div class="col-12"><label class="form-label fw-bold">Upload File</label><input type="file" class="form-control" id="fileSuratKeluar"></div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Upload File (PDF/IMG)</label>
+                                    <!-- ADDED: Button Auto Fill -->
+                                    <input type="file" class="form-control mb-2" id="fileSuratKeluar">
+                                    <button type="button" class="btn btn-ai-sparkle w-100" onclick="autoFillSuratKeluar()">
+                                        <i class="fas fa-magic me-2"></i>✨ Baca File & Isi Otomatis
+                                    </button>
+                                </div>
                                 <div class="col-12 mt-4"><button type="submit" class="btn btn-success w-100 py-2">Simpan</button></div>
                             </div>
                         </form>
@@ -1671,6 +1683,7 @@
             activateTab('input-keluar-content', e);
             autoFillAgendaKeluar();
             renderPembuatList();
+            setDefaultDatesKeluar(); // ADDED: Set default date
         }
 
         function renderPembuatList() {
@@ -2137,6 +2150,14 @@
             });
         }
 
+        function filterSettingTujuan() {
+            const term = $('#searchSettingTujuan').val().toLowerCase();
+            $('#listSettingTujuan .setting-tujuan-item').each(function() {
+                const text = $(this).text().toLowerCase();
+                $(this).toggle(text.includes(term));
+            });
+        }
+
         function openDisposisiModal(id, p) { 
             $('#dispIdSurat').val(id); $('#dispPerihal').text(p); $('#dispInstruksi').val('');
             
@@ -2366,6 +2387,8 @@
         function applyBooking() { const val = $('#bookingValue').val(); const cat = $('#bookingCategory').val(); if(val) { if(cat === 'keluar') $('#outNoAgenda').val(val); else $('#inNoAgenda').val(val); bootstrap.Modal.getInstance(document.getElementById('modalBooking')).hide(); } }
         function saveBooking() { const val = $('#bookingValue').val(); const cat = $('#bookingCategory').val(); const note = $('#bookingNote').val(); if(!val) return Swal.fire('Warning', 'Isi Nomor Agenda', 'warning'); bootstrap.Modal.getInstance(document.getElementById('modalBooking')).hide(); showLoading(true); fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ type: 'booking_agenda', category: cat, targetAgenda: val, email: currentUserEmail, note: note }) }).then(r => r.json()).then(r => { showLoading(false); if(r.status === 'success') { Swal.fire('Sukses', r.data.message, 'success'); if(cat === 'keluar') autoFillAgendaKeluar(); else autoFillAgendaMasuk(); } else { Swal.fire('Gagal', r.message, 'error'); } }); }
         function setDefaultDatesMasuk() { const today = new Date().toISOString().split('T')[0]; if(!$('input[name="tglSurat"]').val()) $('input[name="tglSurat"]').val(today); if(!$('input[name="tglTerima"]').val()) $('input[name="tglTerima"]').val(today); }
+        // NEW FUNCTION: Default Date for Surat Keluar
+        function setDefaultDatesKeluar() { const today = new Date().toISOString().split('T')[0]; if(!$('#sk_tglSurat').val()) $('#sk_tglSurat').val(today); }
     
         // ==========================================
         // GEMINI AI INTEGRATION (SECURE - VIA BACKEND)
@@ -2579,6 +2602,109 @@
                     confirmButtonText: 'Tutup'
                 });
 
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        // Feature 4: Auto-Fill from PDF/Image File (Surat Keluar) - SMART MERGE
+        async function autoFillSuratKeluar() {
+            const fileInput = document.getElementById('fileSuratKeluar');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return Swal.fire('Info', 'Silakan pilih file surat (PDF atau Gambar) terlebih dahulu.', 'info');
+            }
+
+            const btn = event.currentTarget;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analisa File...';
+            btn.disabled = true;
+
+            try {
+                let imageBase64 = null;
+
+                // 1. Convert File to Base64 Image
+                if (file.type === 'application/pdf') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    const page = await pdf.getPage(1);
+                    const scale = 1.5;
+                    const viewport = page.getViewport({ scale: scale });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                } else if (file.type.match(/image.*/)) {
+                    imageBase64 = await readFile(file);
+                } else {
+                    throw new Error("Format file tidak didukung. Gunakan PDF atau Gambar (JPG/PNG).");
+                }
+
+                // 2. Call Gemini Vision via Backend (Secure)
+                // Note: Prompt is adjusted for "Smart Merge" Logic
+                const prompt = `Analisa gambar surat dinas KELUAR ini. Ekstrak informasi berikut dan kembalikan HANYA dalam format JSON valid:
+                {
+                    "tujuan": "kepada siapa surat ini ditujukan (Yth ...)",
+                    "perihal": "perihal/hal surat",
+                    "tgl_surat": "YYYY-MM-DD",
+                    "format_nomor": "Cari teks Nomor Surat di bagian atas. Biasanya ada bagian yang dikosongkan/titik-titik untuk nomor urut (contoh: '800/   /404.1/2025' atau '005/..../404.2/2025'). Ambil teks tersebut persis seperti yang tertulis di kertas termasuk spasi/titiknya."
+                }
+                Jika tanggal tidak ditemukan, kembalikan null. Pastikan format tanggal YYYY-MM-DD. Jangan ada teks lain selain JSON.`;
+
+                const result = await callGeminiAPI(prompt, imageBase64, true);
+
+                if (!result) throw new Error("AI tidak memberikan respon teks (Empty Response).");
+
+                // 3. Parse Result
+                let data;
+                try {
+                    const cleanJson = result.replace(/```json/g, '').replace(/```/g, '').trim();
+                    data = JSON.parse(cleanJson);
+                } catch (e) {
+                    throw new Error("Gagal parsing JSON. Format data tidak sesuai.");
+                }
+
+                // 4. Populate Form & Smart Merge
+                if (data.tgl_surat) $('#sk_tglSurat').val(data.tgl_surat);
+                if (data.tujuan) $('#sk_tujuan').val(data.tujuan);
+                if (data.perihal) $('#outPerihal').val(data.perihal);
+                
+                // SMART MERGE LOGIC
+                let finalNoSurat = data.format_nomor || "";
+                const currentAgenda = $('#outNoAgenda').val();
+                
+                if (finalNoSurat && currentAgenda) {
+                    // Regex: Cari pola /.../ atau /   / (slash, diikuti spasi/titik, diikuti slash)
+                    // Ganti dengan /NomorAgenda/
+                    // Contoh: 800/   /401 -> 800/200/401
+                    finalNoSurat = finalNoSurat.replace(/\/[\s\.]*\//, `/${currentAgenda}/`);
+                }
+                
+                if (finalNoSurat) $('#sk_noSurat').val(finalNoSurat);
+
+                const filledCount = [finalNoSurat, data.tgl_surat, data.tujuan, data.perihal].filter(Boolean).length;
+                
+                if (filledCount === 0) {
+                    Swal.fire('Info', 'AI dapat membaca gambar, namun tidak menemukan teks yang relevan.', 'warning');
+                } else {
+                    Swal.fire('Sukses', `Data berhasil diekstrak (${filledCount}/4). Nomor Surat otomatis digabung dengan Agenda.`, 'success');
+                }
+
+            } catch (error) {
+                console.error("AutoFill Keluar Error:", error);
+                
+                let userMsg = "Terjadi kesalahan sistem.";
+                const errStr = error.message || error.toString();
+
+                if (errStr.includes("Safety")) userMsg = "<b>Blokir Keamanan AI:</b> Konten sensitif terdeteksi.";
+                else if (errStr.includes("JSON")) userMsg = "<b>Gagal Membaca Data:</b> Format respon AI tidak valid.";
+                else userMsg = `<b>Gagal Membaca File:</b><br>${errStr}`;
+
+                Swal.fire({ icon: 'error', title: 'Gagal Analisa', html: userMsg });
             } finally {
                 btn.innerHTML = originalContent;
                 btn.disabled = false;
